@@ -125,3 +125,33 @@ The application also exposes a detector-only API that does not require SFace:
 - `POST /api/detection/photo` — upload an image as multipart form field `file`; returns face boxes, available landmarks, timing, and a base64 annotated preview.
 
 These routes do not enroll people, identify anyone, or write attendance records. Use `/docs` on the local server to try them interactively.
+
+
+## Windows host-computer demo (prepare once, run offline on demo day)
+
+The repository includes Windows scripts for a host computer that must run the presentation without downloading anything during the demo. **The host must be prepared in advance while internet access is available.** A fresh clone alone does not include Python packages or ONNX model weights.
+
+### One-time preparation before demo day
+
+Install 64-bit Python 3.10–3.13 and Git for Windows, then clone this repository on the host computer:
+
+```powershell
+git clone https://github.com/prostermakes123/crabbots-attendance-detection-ready.git
+cd crabbots-attendance-detection-ready
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\setup_windows.ps1
+```
+
+The setup script creates `.venv`, installs the runtime packages from `requirements.txt`, downloads YuNet and SFace, verifies both model SHA-256 checksums, and runs a local readiness check. Confirm that it reports **prepared for offline use**. You can run `.\scripts\check_windows.ps1` any time to verify the local prerequisites; that check does not access the internet.
+
+### On demo day
+
+Double-click `START-CRABBOTS.bat`, or run:
+
+```powershell
+.\scripts\run_windows.ps1
+```
+
+The launcher checks the already-installed environment and local model files, starts the app, and opens the local dashboard. It does **not** run Git, pip, or the model downloader and does not need internet access. Keep the terminal open while demonstrating; press `Ctrl+C` to stop the server.
+
+Do not delete `.venv` or the two files in `backend\models` after preparation. If the repository is updated, run `git pull` and `.\scripts\setup_windows.ps1` before demo day, not during the presentation. Full instructions and troubleshooting are in [`docs/WINDOWS_DEMO_SETUP.md`](docs/WINDOWS_DEMO_SETUP.md).
