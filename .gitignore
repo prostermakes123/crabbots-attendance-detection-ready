@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Application data (biometric / local) ---
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.log
+backend/models/*.onnx
+backend/models/*.onnx.data
+backend/models/download_manifest.json
+!backend/models/.gitkeep
+
+# --- Env & secrets ---
+.env
+.env.local
+
+# --- Frontend tooling (no build step, but be safe) ---
+node_modules/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Test / eval artefacts ---
+tests/fixtures/generated/
+evaluation/results/
+*.cpuprofile
