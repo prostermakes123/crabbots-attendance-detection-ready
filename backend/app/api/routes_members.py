@@ -81,7 +81,8 @@ async def preview(
 async def create_member(
     name: str = Form(...),
     consent: bool = Form(False),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    scan_files: list[UploadFile] = File(default=[]),
     force_duplicate: bool = Form(False),
     force_duplicate_name: bool = Form(False),
     is_demo: bool = Form(False),
@@ -89,14 +90,26 @@ async def create_member(
     pipeline: RecognitionPipeline = Depends(pipeline_or_503),
 ):
     settings = db.get_settings()
-    raw = await _read_upload(file, float(settings["max_upload_mb"]))
+    if not file and not scan_files:
+        raise HTTPException(status_code=422, detail="Upload a photo or capture at least one camera angle.")
+    if len(scan_files) > 5:
+        raise HTTPException(status_code=422, detail="Capture no more than five additional face angles.")
     try:
+        primary_upload = file or scan_files.pop(0)
+        raw = await _read_upload(primary_upload, float(settings["max_upload_mb"]))
         image = image_utils.decode_image_bytes(raw, max_mb=float(settings["max_upload_mb"]))
+        additional_images = []
+        for scan_file in scan_files:
+            scan_raw = await _read_upload(scan_file, float(settings["max_upload_mb"]))
+            additional_images.append(
+                image_utils.decode_image_bytes(scan_raw, max_mb=float(settings["max_upload_mb"]))
+            )
         return enrollment_service.enroll(
             pipeline,
             image,
             name=name,
             consent=consent,
+            additional_images=additional_images,
             is_demo=is_demo,
             force_duplicate=force_duplicate,
             force_duplicate_name=force_duplicate_name,
