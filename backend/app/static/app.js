@@ -267,7 +267,7 @@
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', title: 'Dashboard', subtitle: 'Today at a glance' },
     { id: 'live', label: 'Live recognition', icon: 'camera', title: 'Live recognition', subtitle: 'Real-time identification and attendance' },
     { id: 'members', label: 'Members', icon: 'users', title: 'Members', subtitle: 'Registered CrabBots roster' },
-    { id: 'add', label: 'enroll member', icon: 'userPlus', title: 'enroll member', subtitle: 'Instant enrolllment from a photograph' },
+    { id: 'add', label: 'Enroll member', icon: 'userPlus', title: 'Enroll member', subtitle: 'Instant enrollment from a photograph' },
     { id: 'attendance', label: 'Attendance', icon: 'clock', title: 'Attendance', subtitle: 'History, corrections and export' },
     { id: 'settings', label: 'Settings', icon: 'settings', title: 'Settings', subtitle: 'Recognition, tracking and privacy' },
   ];
@@ -333,7 +333,7 @@
     return noticeBlock(
       'warn',
       'Face models are not installed',
-      'Run <span class="mono">python scripts/download_models.py</span> in the project folder, then restart the server. Recognition and enrolllment are unavailable until then.',
+      'Run <span class="mono">python scripts/download_models.py</span> in the project folder, then restart the server. Recognition and enrolment are unavailable until then.',
     );
   }
 
@@ -509,7 +509,7 @@
           <div class="card stat">
             <div class="stat-top"><span class="stat-label">Unknown detections</span><span class="stat-icon amber">${icon('eye')}</span></div>
             <div class="stat-value">${num(dashboard.unknown_today)}</div>
-            <div class="stat-foot">Rejected, never auto-enrollled</div>
+            <div class="stat-foot">Rejected, never auto-enrolled</div>
           </div>
           <div class="card stat">
             <div class="stat-top"><span class="stat-label">In current session</span><span class="stat-icon teal">${icon('activity')}</span></div>
@@ -1217,7 +1217,7 @@
                 ${icon('search', '')}
                 <input class="input" id="member-search" placeholder="Search members…" value="${esc(search)}" style="padding-left:34px;min-width:220px" />
               </div>
-              <a class="btn btn-primary" href="#/add">${icon('plus')} enroll member</a>
+              <a class="btn btn-primary" href="#/add">${icon('plus')} Enrol member</a>
             </div>
           </div>
           <div class="card-body" id="member-grid-wrap">${memberGrid(state.members, search)}</div>
@@ -1241,7 +1241,7 @@
 
   function memberGrid(members, query) {
     if (!members.length) {
-      return emptyBlock('users', query ? 'No matching members' : 'No members yet', query ? 'Try a different search.' : 'enroll the first CrabBots member from a clear photograph.');
+      return emptyBlock('users', query ? 'No matching members' : 'No members yet', query ? 'Try a different search.' : 'Enroll the first CrabBots member from a clear photograph.');
     }
     return `<div class="member-grid">${members
       .map(
@@ -1250,7 +1250,7 @@
             <span class="avatar lg" data-initials="${esc(initials(member.name))}">${member.has_thumbnail ? `<img src="/api/members/${esc(member.id)}/thumbnail" alt="" loading="lazy" />` : esc(initials(member.name))}</span>
             <div style="min-width:0">
               <div class="member-name">${esc(member.name)}</div>
-              <div class="member-meta">enrollled ${esc(dateOf(member.created_at))}</div>
+              <div class="member-meta">Enrolled ${esc(dateOf(member.created_at))}</div>
               <div class="row" style="gap:5px;margin-top:5px">
                 <span class="badge">${member.embedding_count} embedding${member.embedding_count === 1 ? '' : 's'}</span>
                 ${member.is_demo ? '<span class="badge warn">demo</span>' : ''}
@@ -1283,9 +1283,9 @@
                 <strong>Drop a photo here, or click to browse</strong>
                 <span>JPG, PNG or WebP · max ${state.settings?.values?.max_upload_mb || 12} MB · exactly one person</span>
               </div>
-              <input type="file" id="enroll-file" accept="image/jpeg,image/png,image/webp" hidden />
-              <div id="enroll-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="enrolllment preview" /></div>` : ''}</div>
-              <div id="enroll-error" class="mt-16">${add.error ? noticeBlock('bad', 'Cannot use this photo', esc(add.error)) : ''}</div>
+              <input type="file" id="enrol-file" accept="image/jpeg,image/png,image/webp" hidden />
+              <div id="enrol-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="Enrolment preview" /></div>` : ''}</div>
+              <div id="enrol-error" class="mt-16">${add.error ? noticeBlock('bad', 'Cannot use this photo', esc(add.error)) : ''}</div>
             </div>
           </div>
 
@@ -1301,21 +1301,21 @@
             <div class="card-body stack">
               ${add.done ? successBlock(add.done) : `
               <div class="field">
-                <label for="enroll-name">Full name</label>
-                <input class="input" id="enroll-name" placeholder="e.g. Alex Rivera" maxlength="80" value="${esc(add.name)}" />
+                <label for="enrol-name">Full name</label>
+                <input class="input" id="enrol-name" placeholder="e.g. Alex Rivera" maxlength="80" value="${esc(add.name)}" />
               </div>
               <div class="field">
-                <label for="enroll-notes">Notes <span class="muted">(optional)</span></label>
-                <input class="input" id="enroll-notes" placeholder="Team, role…" maxlength="200" value="${esc(add.notes)}" />
+                <label for="enrol-notes">Notes <span class="muted">(optional)</span></label>
+                <input class="input" id="enrol-notes" placeholder="Team, role…" maxlength="200" value="${esc(add.notes)}" />
               </div>
-              <label class="check"><input type="checkbox" id="enroll-consent" ${add.consent ? 'checked' : ''} />
+              <label class="check"><input type="checkbox" id="enrol-consent" ${add.consent ? 'checked' : ''} />
                 <span>I confirm this person consents to their face embedding being stored for CrabBots attendance. Only the embedding and an optional thumbnail are kept.</span>
               </label>
-              ${add.analysis?.duplicate ? noticeBlock('warn', 'Possible existing member', `This face is ${pct(add.analysis.duplicate.similarity)} similar to <strong>${esc(add.analysis.duplicate.name)}</strong>. ${add.forceDup ? 'Duplicate override enabled — enrolllment will proceed.' : 'Confirm below if it is a different person.'}`) : ''}
+              ${add.analysis?.duplicate ? noticeBlock('warn', 'Possible existing member', `This face is ${pct(add.analysis.duplicate.similarity)} similar to <strong>${esc(add.analysis.duplicate.name)}</strong>. ${add.forceDup ? 'Duplicate override enabled — enrollment will proceed.' : 'Confirm below if it is a different person.'}`) : ''}
               ${add.forceDup ? '<span class="badge warn">Duplicate override enabled</span>' : ''}
               <div class="row">
-                <button class="btn btn-primary" id="btn-enroll" ${add.analysis?.ok && add.name.trim().length >= 2 && add.consent ? '' : 'disabled'}>
-                  ${icon('userPlus')} enroll member
+                <button class="btn btn-primary" id="btn-enrol" ${add.analysis?.ok && add.name.trim().length >= 2 && add.consent ? '' : 'disabled'}>
+                  ${icon('userPlus')} Enrol member
                 </button>
                 ${add.analysis?.duplicate && !add.forceDup ? '<button class="btn btn-ghost" id="btn-force-dup">It\'s a different person</button>' : ''}
               </div>
@@ -1325,7 +1325,7 @@
           </div>
 
           <div class="card">
-            <div class="card-head"><h2>How enrolllment works</h2></div>
+            <div class="card-head"><h2>How enrolment works</h2></div>
             <div class="card-body stack" style="gap:10px">
               ${stepRow('scan', 'Detect', 'YuNet finds the face and five landmarks.')}
               ${stepRow('shield', 'Validate', 'Sharpness, lighting, size and pose are checked.')}
@@ -1371,18 +1371,18 @@
   function successBlock(member) {
     return `<div class="stack" style="align-items:center;text-align:center;gap:12px;padding:10px 0">
       <span class="avatar lg" style="width:72px;height:72px;flex-basis:72px;border-radius:18px">${member.preview_image ? `<img src="${member.preview_image}" alt="" />` : esc(initials(member.name))}</span>
-      <div><div style="font-weight:650;font-size:16px">${esc(member.name)} is enrollled</div>
+      <div><div style="font-weight:650;font-size:16px">${esc(member.name)} is enrolled</div>
       <div class="small muted">Recognisable by the live camera right now.</div></div>
       <div class="row" style="justify-content:center">
         <a class="btn btn-primary" href="#/live">${icon('camera')} Recognise now</a>
-        <button class="btn btn-ghost" id="btn-enroll-another">enroll another</button>
+        <button class="btn btn-ghost" id="btn-enrol-another">Enrol another</button>
       </div>
     </div>`;
   }
 
   function bindAddMember() {
     const dropzone = $('#dropzone');
-    const input = $('#enroll-file');
+    const input = $('#enrol-file');
     if (dropzone && input) {
       dropzone.addEventListener('click', () => input.click());
       dropzone.addEventListener('keydown', (event) => {
@@ -1405,40 +1405,40 @@
       );
       dropzone.addEventListener('drop', (event) => {
         const file = event.dataTransfer?.files?.[0];
-        if (file) selectenrollFile(file);
+        if (file) selectEnrolFile(file);
       });
       input.addEventListener('change', (event) => {
         const file = event.target.files?.[0];
         event.target.value = '';
-        if (file) selectenrollFile(file);
+        if (file) selectEnrolFile(file);
       });
     }
 
-    $('#enroll-name')?.addEventListener('input', (event) => {
+    $('#enrol-name')?.addEventListener('input', (event) => {
       state.add.name = event.target.value;
-      const button = $('#btn-enroll');
+      const button = $('#btn-enrol');
       if (button) button.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
     });
-    $('#enroll-notes')?.addEventListener('input', (event) => {
+    $('#enrol-notes')?.addEventListener('input', (event) => {
       state.add.notes = event.target.value;
     });
-    $('#enroll-consent')?.addEventListener('change', (event) => {
+    $('#enrol-consent')?.addEventListener('change', (event) => {
       state.add.consent = event.target.checked;
-      const button = $('#btn-enroll');
+      const button = $('#btn-enrol');
       if (button) button.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
     });
-    $('#btn-enroll')?.addEventListener('click', enrolllMember);
+    $('#btn-enrol')?.addEventListener('click', enrollMember);
     $('#btn-force-dup')?.addEventListener('click', () => {
       state.add.forceDup = true;
       renderAddMember();
     });
-    $('#btn-enroll-another')?.addEventListener('click', () => {
+    $('#btn-enrol-another')?.addEventListener('click', () => {
       state.add = { file: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null, errorImage: null };
       renderAddMember();
     });
   }
 
-  async function selectenrollFile(file) {
+  async function selectEnrolFile(file) {
     if (!file.type.startsWith('image/')) {
       toast('Choose a JPG, PNG or WebP image', 'error');
       return;
@@ -1455,7 +1455,7 @@
     state.add.errorImage = null;
     state.add.forceDup = false;
     renderAddMember();
-    const preview = $('#enroll-preview');
+    const preview = $('#enrol-preview');
     if (preview) {
       const url = URL.createObjectURL(file);
       preview.innerHTML = `<div class="preview-wrap"><img src="${url}" alt="Selected photo" /></div>`;
@@ -1475,13 +1475,13 @@
     renderAddMember();
   }
 
-  async function enrolllMember() {
+  async function enrollMember() {
     const add = state.add;
     if (!add.file || !add.analysis?.ok) return;
-    const button = $('#btn-enroll');
+    const button = $('#btn-enrol');
     if (button) {
       button.disabled = true;
-      button.innerHTML = `${icon('refresh', 'spin')} enrollling…`;
+      button.innerHTML = `${icon('refresh', 'spin')} Enrolling…`;
     }
     try {
       const form = new FormData();
@@ -1496,7 +1496,7 @@
       state.add.analysis = null;
       state.add.file = null;
       await Promise.all([refreshHealth(), refreshSession()]);
-      toast(`${member.name} enrollled — live recognition is active`, 'success', 5200);
+      toast(`${member.name} enrolled — live recognition is active`, 'success', 5200);
       renderAddMember();
     } catch (error) {
       if (error.code === 'duplicate_face') {
@@ -1504,7 +1504,7 @@
         toast('This face looks like an existing member. Confirm “It’s a different person” to override.', 'error', 6000);
       } else if (error.code === 'duplicate_name') {
         state.add.forceName = true;
-        toast('A member with this name already exists. Press enroll again to keep the name.', 'error', 6000);
+        toast('A member with this name already exists. Press Enroll again to keep the name.', 'error', 6000);
       } else {
         toast(error.message, 'error', 5000);
       }
@@ -1705,12 +1705,12 @@
       ],
     },
     {
-      title: 'enrolllment quality',
+      title: 'Enrollment quality',
       fields: [
-        { key: 'enrolll_min_face_ratio', label: 'Minimum face width (ratio)', type: 'range', step: 0.01 },
-        { key: 'enrolll_blur_threshold', label: 'Sharpness threshold', type: 'number', step: 5 },
-        { key: 'enrolll_min_brightness', label: 'Minimum brightness', type: 'number', step: 1 },
-        { key: 'enrolll_max_brightness', label: 'Maximum brightness', type: 'number', step: 1 },
+        { key: 'enroll_min_face_ratio', label: 'Minimum face width (ratio)', type: 'range', step: 0.01 },
+        { key: 'enroll_blur_threshold', label: 'Sharpness threshold', type: 'number', step: 5 },
+        { key: 'enroll_min_brightness', label: 'Minimum brightness', type: 'number', step: 1 },
+        { key: 'enroll_max_brightness', label: 'Maximum brightness', type: 'number', step: 1 },
         { key: 'duplicate_similarity', label: 'Duplicate-face similarity', type: 'range', step: 0.01 },
         { key: 'max_upload_mb', label: 'Max upload size (MB)', type: 'number', step: 1 },
       ],
