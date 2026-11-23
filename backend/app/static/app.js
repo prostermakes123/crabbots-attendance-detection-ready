@@ -269,7 +269,7 @@
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', title: 'Dashboard', subtitle: 'Today at a glance' },
     { id: 'live', label: 'Live recognition', icon: 'camera', title: 'Live recognition', subtitle: 'Real-time identification and attendance' },
     { id: 'members', label: 'Members', icon: 'users', title: 'Members', subtitle: 'Registered CrabBots roster' },
-    { id: 'add', label: 'Enroll member', icon: 'userPlus', title: 'Enroll member', subtitle: 'Instant enrollment from a photograph' },
+    { id: 'add', label: 'Enroll member', icon: 'userPlus', title: 'Enroll member', subtitle: 'Enroll from a photo or webcam scan' },
     { id: 'attendance', label: 'Attendance', icon: 'clock', title: 'Attendance', subtitle: 'History, corrections and export' },
     { id: 'settings', label: 'Settings', icon: 'settings', title: 'Settings', subtitle: 'Recognition, tracking and privacy' },
   ];
@@ -1310,7 +1310,7 @@
       <div class="grid cols-main">
         <div class="stack">
           <div class="card">
-            <div class="card-head"><div><h2>1 · Photograph</h2><div class="sub">One clear, front-facing face</div></div>
+            <div class="card-head"><div><h2>1 · Photograph</h2><div class="sub">Upload one photo or capture several face angles</div></div>
               ${add.analysis ? '<span class="badge ok dot">Analysed</span>' : ''}
             </div>
             <div class="card-body">
@@ -1365,7 +1365,7 @@
                 <input class="input" id="enrol-notes" placeholder="Team, role…" maxlength="200" value="${esc(add.notes)}" />
               </div>
               <label class="check"><input type="checkbox" id="enrol-consent" ${add.consent ? 'checked' : ''} />
-                <span>I confirm this person consents to their face embedding being stored for CrabBots attendance. Only the embedding and an optional thumbnail are kept.</span>
+                <span>I confirm this person consents to their face embedding being stored for CrabBots attendance. Face embeddings from the photo and camera angles, plus an optional thumbnail, are kept.</span>
               </label>
               ${add.analysis?.duplicate ? noticeBlock('warn', 'Possible existing member', `This face is ${pct(add.analysis.duplicate.similarity)} similar to <strong>${esc(add.analysis.duplicate.name)}</strong>. ${add.forceDup ? 'Duplicate override enabled — enrollment will proceed.' : 'Confirm below if it is a different person.'}`) : ''}
               ${add.forceDup ? '<span class="badge warn">Duplicate override enabled</span>' : ''}
@@ -1385,7 +1385,7 @@
             <div class="card-body stack" style="gap:10px">
               ${stepRow('scan', 'Detect', 'YuNet finds the face and five landmarks.')}
               ${stepRow('shield', 'Validate', 'Sharpness, lighting, size and pose are checked.')}
-              ${stepRow('activity', 'Embed', 'SFace produces a 128-D vector, stored locally.')}
+              ${stepRow('activity', 'Embed', 'SFace creates a 128-D reference for each captured angle; all are stored locally.')}
               ${stepRow('sparkles', 'Recognise', 'The gallery updates instantly for live matching.')}
             </div>
           </div>
@@ -1401,7 +1401,7 @@
 
   function qualityBlock(analysis) {
     if (!analysis) {
-      return `<div class="empty" style="padding:22px">${icon('shield')}<strong>No photo analysed</strong><p>Upload a photo to see sharpness, lighting, face size and pose checks.</p></div>`;
+      return `<div class="empty" style="padding:22px">${icon('shield')}<strong>No photo analysed</strong><p>Upload a photo or capture a webcam angle to see sharpness, lighting, face size and pose checks.</p></div>`;
     }
     const quality = analysis.quality;
     if (!quality) {
@@ -1657,6 +1657,7 @@
         state.add.forceName = true;
         toast('A member with this name already exists. Press Enroll again to keep the name.', 'error', 6000);
       } else {
+        state.add.error = error.message;
         toast(error.message, 'error', 5000);
       }
       renderAddMember();
