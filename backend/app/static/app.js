@@ -1526,7 +1526,9 @@
         video.srcObject = state.add.cameraStream;
         wrap.classList.remove('hidden');
         await video.play();
-        $$('[data-scan-angle]').forEach((button) => { button.disabled = false; });
+        $('[data-scan-angle]').forEach((button) => {
+          button.disabled = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
+        });
       }
     } catch (error) {
       stopEnrolCamera();
