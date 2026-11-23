@@ -1651,6 +1651,7 @@
     } catch (error) {
       if (error.code === 'duplicate_face') {
         state.add.forceDup = false;
+        state.add.analysis = { ...(state.add.analysis || {}), duplicate: error.payload?.duplicate || state.add.analysis?.duplicate };
         toast('This face looks like an existing member. Confirm “It’s a different person” to override.', 'error', 6000);
       } else if (error.code === 'duplicate_name') {
         state.add.forceName = true;
