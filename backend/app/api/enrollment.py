@@ -110,15 +110,23 @@ def enroll(
     image: np.ndarray,
     name: str,
     consent: bool,
+    additional_images: list[np.ndarray] | None = None,
     is_demo: bool = False,
     force_duplicate: bool = False,
     force_duplicate_name: bool = False,
     notes: str | None = None,
     actor: str | None = None,
 ) -> dict[str, Any]:
-    report = analyze(pipeline, image)
-    if report["duplicate"] and not force_duplicate:
-        dup = report["duplicate"]
+    """Enroll one person using a primary image plus optional camera-angle captures."""
+    images = [image, *(additional_images or [])]
+    if len(images) > 6:
+        raise EnrollmentError("too_many_images", "Use at most six face images per member.")
+
+    settings = pipeline.settings()
+    reports = [analyze(pipeline, candidate) for candidate in images]
+    duplicates = [report["duplicate"] for report in reports if report["duplicate"]]
+    if duplicates and not force_duplicate:
+        dup = max(duplicates, key=lambda item: item["similarity"])
         raise EnrollmentError(
             "duplicate_face",
             f"This face already looks like {dup['name']} ({dup['similarity'] * 100:.0f}% similar). "
@@ -127,15 +135,21 @@ def enroll(
             details={"duplicate": dup},
         )
 
-    settings = pipeline.settings()
-    detections, embeddings = pipeline._detect_and_embed(image, settings)  # noqa: SLF001
-    detection = detections[0]
-    thumbnail = members_service.make_thumbnail(image, detection)
+    vectors: list[np.ndarray] = []
+    primary_detection = None
+    for candidate in images:
+        detections, embeddings = pipeline._detect_and_embed(candidate, settings)  # noqa: SLF001
+        if len(detections) != 1 or len(embeddings) != 1:
+            raise EnrollmentError("invalid_scan", "Each enrollment image must contain exactly one clear face.")
+        if primary_detection is None:
+            primary_detection = detections[0]
+        vectors.append(embeddings[0])
 
+    thumbnail = members_service.make_thumbnail(image, primary_detection)
     try:
         member = members_service.create_member(
             name=name,
-            vectors=[embeddings[0]],
+            vectors=vectors,
             consent=consent,
             is_demo=is_demo,
             notes=notes,
@@ -153,7 +167,7 @@ def enroll(
     except ValueError as exc:
         raise EnrollmentError("invalid_input", str(exc), status_code=400) from exc
 
-    # Make the confirmation visual: draw the saved face once more.
-    member["preview_image"] = report["preview_image"]
-    member["quality"] = report["quality"]
+    member["preview_image"] = reports[0]["preview_image"]
+    member["quality"] = reports[0]["quality"]
+    member["enrollment_images"] = len(images)
     return member
