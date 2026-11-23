@@ -149,6 +149,8 @@
     sentImage: { w: 0, h: 0 },
     sessionId: null,
     targetFps: 8,
+    overlayBoxes: new Map(),
+    seenAttendanceMembers: new Set(),
   };
 
   /* --------------------------------------------------------------- toasts */
@@ -820,6 +822,7 @@
     const video = $('#live-video');
     if (video) video.srcObject = null;
     live.detections = [];
+    live.overlayBoxes.clear();
     drawOverlay([]);
     $('#stage-empty')?.classList.remove('hidden');
     $('#stage-hud')?.classList.add('hidden');
@@ -997,12 +1000,29 @@
     const offsetX = (width - sourceW * scale) / 2;
     const offsetY = (height - sourceH * scale) / 2;
 
-    detections.forEach((det) => {
-      const [x, y, w, h] = det.bbox;
-      const rx = offsetX + x * scale;
-      const ry = offsetY + y * scale;
-      const rw = w * scale;
-      const rh = h * scale;
+    // Only draw enrolled members; unknown and pending detections are hidden.
+    const visibleDetections = detections.filter((det) => det.status === 'recognized');
+    const activeTrackIds = new Set();
+    visibleDetections.forEach((det) => {
+      const [rawX, rawY, rawW, rawH] = det.bbox;
+      const trackKey = String(det.track_id ?? [rawX, rawY].join(':'));
+      activeTrackIds.add(trackKey);
+      const previous = live.overlayBoxes.get(trackKey);
+      // Smooth small frame-to-frame detector changes to prevent box/label jitter.
+      const amount = previous ? 0.35 : 1;
+      const box = previous
+        ? {
+            x: previous.x + (rawX - previous.x) * amount,
+            y: previous.y + (rawY - previous.y) * amount,
+            w: previous.w + (rawW - previous.w) * amount,
+            h: previous.h + (rawH - previous.h) * amount,
+          }
+        : { x: rawX, y: rawY, w: rawW, h: rawH };
+      live.overlayBoxes.set(trackKey, box);
+      const rx = offsetX + box.x * scale;
+      const ry = offsetY + box.y * scale;
+      const rw = box.w * scale;
+      const rh = box.h * scale;
       const color = colorForStatus(det.status);
 
       ctx.save();
@@ -1042,29 +1062,36 @@
         ctx.fillText(`#${det.track_id}`, rx + 4, ry + rh + 12);
       }
     });
+    for (const trackKey of live.overlayBoxes.keys()) {
+      if (!activeTrackIds.has(trackKey)) live.overlayBoxes.delete(trackKey);
+    }
   }
 
   function renderDetections(detections) {
     const list = $('#det-list');
     const count = $('#frame-count');
     if (!list) return;
-    if (count) count.textContent = `${detections.length} face${detections.length === 1 ? '' : 's'}`;
-    if (!detections.length) {
+    // One row per enrolled member; hide unknown and pending faces.
+    const uniqueMembers = new Map();
+    detections.filter((det) => det.status === 'recognized').forEach((det) => {
+      const key = String(det.member_id || det.name || det.track_id);
+      const current = uniqueMembers.get(key);
+      if (!current || (det.confidence || 0) > (current.confidence || 0)) uniqueMembers.set(key, det);
+    });
+    const visible = [...uniqueMembers.values()];
+    if (count) count.textContent = `${visible.length} known`;
+    if (!visible.length) {
       list.innerHTML = emptyBlock('scan', 'No faces in view', live.running ? 'Look towards the camera to be recognised.' : 'Start the camera to begin.');
       return;
     }
-    const sorted = [...detections].sort((a, b) => {
-      const rank = { recognized: 0, pending: 1, unknown: 2 };
-      return (rank[a.status] ?? 3) - (rank[b.status] ?? 3) || (b.confidence || 0) - (a.confidence || 0);
-    });
+    const sorted = visible.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
     list.innerHTML = sorted
       .map((det) => {
-        const label =
-          det.status === 'recognized' ? det.name || 'Member' : det.status === 'unknown' ? 'Unknown person' : 'Identifying…';
+        const label = det.name || 'Member';
         const conf = Number(det.confidence) || 0;
         const confClass = conf >= 0.7 ? '' : conf >= 0.5 ? 'medium' : 'low';
         return `<div class="det-item">
-          <div class="det-avatar ${esc(det.status)}">${det.status === 'recognized' ? esc(initials(det.name)) : det.status === 'unknown' ? '?' : '…'}</div>
+          <div class="det-avatar recognized">${esc(initials(det.name))}</div>
           <div class="det-main">
             <div class="det-name">${esc(label)} ${det.attendance_recorded ? '<span class="badge ok" style="font-size:10px;padding:0 6px">recorded</span>' : ''}</div>
             <div class="det-meta">Track <span class="track-chip">#${esc(det.track_id)}</span> · ${esc(det.hits)} frames · ${esc(det.evidence)} votes</div>
@@ -1078,13 +1105,18 @@
   function pushLiveEvents(message) {
     const events = [];
     (message.attendance_created || []).forEach((record) => {
-      events.push({ kind: 'attendance', name: record.member_name, confidence: record.confidence, ts: record.timestamp, id: record.id });
+      // Keep only one activity entry per known member during this live run.
+      const memberKey = String(record.member_id || record.member_name || '').trim().toLowerCase();
+      if (!memberKey || live.seenAttendanceMembers.has(memberKey)) return;
+      live.seenAttendanceMembers.add(memberKey);
+      events.push({
+        kind: 'attendance', name: record.member_name, confidence: record.confidence,
+        ts: record.timestamp, id: record.id, member_id: record.member_id,
+      });
       toast(`${record.member_name} checked in`, 'success', 3200);
       refreshSession();
     });
-    (message.unknown_events || []).forEach((event) => {
-      events.push({ kind: 'unknown', name: 'Unknown person', confidence: event.confidence, ts: new Date().toISOString() });
-    });
+    // Unknown detections are deliberately omitted from Recent activity.
     if (!events.length) return;
     live.activity = [...events, ...live.activity].slice(0, 12);
     renderLiveActivity();
@@ -1096,7 +1128,7 @@
     if (!root) return;
     if (count) count.textContent = String(live.activity.length);
     if (!live.activity.length) {
-      root.innerHTML = emptyBlock('activity', 'Nothing yet', 'Check-ins and unknown detections appear here.');
+      root.innerHTML = emptyBlock('activity', 'No known visitors yet', 'Recognized members appear here once when they check in.');
       return;
     }
     root.innerHTML = live.activity
