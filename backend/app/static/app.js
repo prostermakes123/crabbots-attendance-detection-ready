@@ -1439,6 +1439,17 @@
   function bindAddMember() {
     const dropzone = $('#dropzone');
     const input = $('#enrol-file');
+    const cameraVideo = $('#enrol-camera');
+    if (state.add.cameraStream && cameraVideo) {
+      cameraVideo.srcObject = state.add.cameraStream;
+      $('#enrol-camera-wrap')?.classList.remove('hidden');
+      cameraVideo.play().catch(() => {});
+    }
+    $('[data-scan-angle]').forEach((button) => {
+      const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
+      button.disabled = !state.add.cameraStream || captured;
+      if (captured) button.classList.add('btn-primary');
+    });
     if (dropzone && input) {
       dropzone.addEventListener('click', () => input.click());
       dropzone.addEventListener('keydown', (event) => {
