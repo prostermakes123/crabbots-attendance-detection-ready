@@ -129,7 +129,7 @@
     members: [],
     attendance: { total: 0, items: [] },
     filters: { q: '', session_id: '', date: '', offset: 0, limit: 50 },
-    add: { file: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null },
+    add: { file: null, scanFiles: [], cameraStream: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null },
   };
 
   const live = {
@@ -293,6 +293,7 @@
   async function route() {
     const page = currentRoute();
     if (live.running && page.id !== 'live') stopLive({ silent: true });
+    if (page.id !== 'add') stopEnrolCamera();
     $$('.nav-link').forEach((link) => link.classList.toggle('active', link.dataset.route === page.id));
     $('#page-title').textContent = page.title;
     $('#page-subtitle').textContent = page.subtitle;
@@ -1320,6 +1321,26 @@
               </div>
               <input type="file" id="enrol-file" accept="image/jpeg,image/png,image/webp" hidden />
               <div id="enrol-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="Enrolment preview" /></div>` : ''}</div>
+              <div class="divider" style="margin:18px 0"></div>
+              <div class="row-between">
+                <div><strong>Or scan with webcam</strong><div class="small muted">Capture several angles to improve recognition.</div></div>
+                <button class="btn btn-ghost btn-sm" id="btn-camera-start">${icon('camera')} Start camera</button>
+              </div>
+              <div id="enrol-camera-wrap" class="enrol-camera-wrap hidden">
+                <video id="enrol-camera" autoplay muted playsinline></video>
+                <div class="small muted">Follow each prompt and keep your face well lit and inside the frame.</div>
+                <div class="row">
+                  <button class="btn btn-subtle btn-sm" data-scan-angle="front" disabled>1 · Look straight</button>
+                  <button class="btn btn-subtle btn-sm" data-scan-angle="left" disabled>2 · Turn left</button>
+                  <button class="btn btn-subtle btn-sm" data-scan-angle="right" disabled>3 · Turn right</button>
+                  <button class="btn btn-subtle btn-sm" data-scan-angle="tilt" disabled>4 · Tilt head</button>
+                </div>
+                <div class="row-between">
+                  <span class="small muted" id="scan-count">${add.scanFiles.length} of 4 angles captured</span>
+                  <button class="btn btn-ghost btn-sm" id="btn-camera-stop">Stop camera</button>
+                </div>
+              </div>
+              <div id="scan-thumbnails" class="scan-thumbnails">${add.scanFiles.map((file) => `<span class="badge ok">${esc(file.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('')}</div>
               <div id="enrol-error" class="mt-16">${add.error ? noticeBlock('bad', 'Cannot use this photo', esc(add.error)) : ''}</div>
             </div>
           </div>
@@ -1452,7 +1473,7 @@
     $('#enrol-name')?.addEventListener('input', (event) => {
       state.add.name = event.target.value;
       const button = $('#btn-enrol');
-      if (button) button.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
+      if (button) button.disabled = !(state.add.analysis?.ok && (state.add.file || state.add.scanFiles.length) && state.add.name.trim().length >= 2 && state.add.consent);
     });
     $('#enrol-notes')?.addEventListener('input', (event) => {
       state.add.notes = event.target.value;
@@ -1460,7 +1481,7 @@
     $('#enrol-consent')?.addEventListener('change', (event) => {
       state.add.consent = event.target.checked;
       const button = $('#btn-enrol');
-      if (button) button.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
+      if (button) button.disabled = !(state.add.analysis?.ok && (state.add.file || state.add.scanFiles.length) && state.add.name.trim().length >= 2 && state.add.consent);
     });
     $('#btn-enrol')?.addEventListener('click', enrollMember);
     $('#btn-force-dup')?.addEventListener('click', () => {
@@ -1468,9 +1489,102 @@
       renderAddMember();
     });
     $('#btn-enrol-another')?.addEventListener('click', () => {
-      state.add = { file: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null, errorImage: null };
+      stopEnrolCamera();
+      state.add = { file: null, scanFiles: [], cameraStream: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null, errorImage: null };
       renderAddMember();
     });
+    $('#btn-camera-start')?.addEventListener('click', startEnrolCamera);
+    $('#btn-camera-stop')?.addEventListener('click', stopEnrolCamera);
+    $('[data-scan-angle]').forEach((button) => button.addEventListener('click', () => captureEnrolAngle(button.dataset.scanAngle)));
+  }
+
+  async function startEnrolCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast('Camera access is unavailable. Use localhost or HTTPS and a supported browser.', 'error', 6000);
+      return;
+    }
+    try {
+      stopEnrolCamera();
+      state.add.cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const video = $('#enrol-camera');
+      const wrap = $('#enrol-camera-wrap');
+      if (video && wrap) {
+        video.srcObject = state.add.cameraStream;
+        wrap.classList.remove('hidden');
+        await video.play();
+        $('[data-scan-angle]').forEach((button) => { button.disabled = false; });
+      }
+    } catch (error) {
+      stopEnrolCamera();
+      toast(`Could not start camera: ${error.message || error}`, 'error', 6000);
+    }
+  }
+
+  function stopEnrolCamera() {
+    if (state.add.cameraStream) {
+      state.add.cameraStream.getTracks().forEach((track) => track.stop());
+      state.add.cameraStream = null;
+    }
+    const video = $('#enrol-camera');
+    if (video) video.srcObject = null;
+    $('#enrol-camera-wrap')?.classList.add('hidden');
+  }
+
+  async function captureEnrolAngle(angle) {
+    const video = $('#enrol-camera');
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      toast('Wait for the camera image to appear, then try again.', 'info');
+      return;
+    }
+    if (state.add.scanFiles.some((file) => file.name === `camera-${angle}.jpg`)) {
+      toast('That angle has already been captured.', 'info');
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) {
+      toast('Could not capture this camera frame. Please try again.', 'error');
+      return;
+    }
+    const file = new File([blob], `camera-${angle}.jpg`, { type: 'image/jpeg' });
+    state.add.scanFiles.push(file);
+    const count = $('#scan-count');
+    if (count) count.textContent = `${state.add.scanFiles.length} of 4 angles captured`;
+    const thumbs = $('#scan-thumbnails');
+    if (thumbs) thumbs.innerHTML = state.add.scanFiles.map((item) =>
+      `<span class="badge ok">${esc(item.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('');
+    const button = $('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
+    if (button) { button.disabled = true; button.classList.add('btn-primary'); }
+    if (!state.add.file && !state.add.analysis) await analyzeEnrolImage(file);
+    const enrolButton = $('#btn-enrol');
+    if (enrolButton) enrolButton.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
+    toast(`${angle[0].toUpperCase() + angle.slice(1)} angle captured`, 'success', 1800);
+  }
+
+  async function analyzeEnrolImage(file) {
+    const preview = $('#enrol-preview');
+    if (preview) {
+      const url = URL.createObjectURL(file);
+      preview.innerHTML = `<div class="preview-wrap"><img src="${url}" alt="Selected enrollment image" /></div>`;
+      $('#quality-body').innerHTML = `<div class="row"><span class="btn-icon spin">${icon('refresh')}</span><span class="small muted">Checking face, sharpness, lighting and duplicates…</span></div>`;
+    }
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      state.add.analysis = await apiUpload('/api/members/preview', form);
+      state.add.error = null;
+    } catch (error) {
+      state.add.analysis = null;
+      state.add.error = error.message;
+      if (error.payload?.preview_image) state.add.errorImage = error.payload.preview_image;
+    }
+    renderAddMember();
   }
 
   async function selectEnrolFile(file) {
@@ -1490,29 +1604,12 @@
     state.add.errorImage = null;
     state.add.forceDup = false;
     renderAddMember();
-    const preview = $('#enrol-preview');
-    if (preview) {
-      const url = URL.createObjectURL(file);
-      preview.innerHTML = `<div class="preview-wrap"><img src="${url}" alt="Selected photo" /></div>`;
-      $('#quality-body').innerHTML = `<div class="row"><span class="btn-icon spin">${icon('refresh')}</span><span class="small muted">Checking face, sharpness, lighting and duplicates…</span></div>`;
-    }
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const analysis = await apiUpload('/api/members/preview', form);
-      state.add.analysis = analysis;
-      state.add.error = null;
-    } catch (error) {
-      state.add.analysis = null;
-      state.add.error = error.message;
-      if (error.payload?.preview_image) state.add.errorImage = error.payload.preview_image;
-    }
-    renderAddMember();
+    await analyzeEnrolImage(file);
   }
 
   async function enrollMember() {
     const add = state.add;
-    if (!add.file || !add.analysis?.ok) return;
+    if ((!add.file && !add.scanFiles.length) || !add.analysis?.ok) return;
     const button = $('#btn-enrol');
     if (button) {
       button.disabled = true;
@@ -1520,13 +1617,20 @@
     }
     try {
       const form = new FormData();
-      form.append('file', add.file);
+      if (add.file) {
+        form.append('file', add.file);
+        add.scanFiles.forEach((scan) => form.append('scan_files', scan));
+      } else {
+        form.append('file', add.scanFiles[0]);
+        add.scanFiles.slice(1).forEach((scan) => form.append('scan_files', scan));
+      }
       form.append('name', add.name.trim());
       form.append('consent', add.consent ? 'true' : 'false');
       form.append('force_duplicate', add.forceDup ? 'true' : 'false');
       form.append('force_duplicate_name', add.forceName ? 'true' : 'false');
       if (add.notes.trim()) form.append('notes', add.notes.trim());
       const member = await apiUpload('/api/members', form);
+      stopEnrolCamera();
       state.add.done = member;
       state.add.analysis = null;
       state.add.file = null;
