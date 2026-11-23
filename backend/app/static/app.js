@@ -987,8 +987,11 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    const sourceW = video.videoWidth || live.sentImage.w;
-    const sourceH = video.videoHeight || live.sentImage.h;
+    // Detection boxes are returned in the dimensions of the resized frame
+    // sent to the backend (currently up to 640px wide), not the camera's
+    // original video dimensions. Use those exact dimensions to align boxes.
+    const sourceW = live.sentImage.w || video.videoWidth;
+    const sourceH = live.sentImage.h || video.videoHeight;
     if (!sourceW || !sourceH) return;
     const scale = Math.min(width / sourceW, height / sourceH);
     const offsetX = (width - sourceW * scale) / 2;
