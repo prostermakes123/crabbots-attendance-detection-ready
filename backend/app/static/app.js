@@ -1522,14 +1522,29 @@
       });
       const video = $('#enrol-camera');
       const wrap = $('#enrol-camera-wrap');
-      if (video && wrap) {
-        video.srcObject = state.add.cameraStream;
-        wrap.classList.remove('hidden');
-        await video.play();
-        $('[data-scan-angle]').forEach((button) => {
-          button.disabled = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
+      if (!video || !wrap) throw new Error('Camera preview is not available. Please reopen Enroll Members.');
+      video.srcObject = state.add.cameraStream;
+      wrap.classList.remove('hidden');
+      // Wait for the browser to attach the camera stream before starting playback.
+      if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+        await new Promise((resolve, reject) => {
+          const onReady = () => { cleanup(); resolve(); };
+          const onError = () => { cleanup(); reject(new Error('The camera preview could not be loaded.')); };
+          const cleanup = () => {
+            video.removeEventListener('loadedmetadata', onReady);
+            video.removeEventListener('error', onError);
+          };
+          video.addEventListener('loadedmetadata', onReady, { once: true });
+          video.addEventListener('error', onError, { once: true });
         });
       }
+      await video.play();
+      $('[data-scan-angle]').forEach((button) => {
+        const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
+        button.disabled = captured;
+      });
+      const startButton = $('#btn-camera-start');
+      if (startButton) startButton.disabled = true;
     } catch (error) {
       stopEnrolCamera();
       toast(`Could not start camera: ${error.message || error}`, 'error', 6000);
@@ -1542,8 +1557,14 @@
       state.add.cameraStream = null;
     }
     const video = $('#enrol-camera');
-    if (video) video.srcObject = null;
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+    }
     $('#enrol-camera-wrap')?.classList.add('hidden');
+    const startButton = $('#btn-camera-start');
+    if (startButton) startButton.disabled = false;
+    $('[data-scan-angle]').forEach((button) => { button.disabled = true; });
   }
 
   async function captureEnrolAngle(angle) {
