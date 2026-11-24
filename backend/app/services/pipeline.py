@@ -52,7 +52,8 @@ class RecognitionPipeline:
 
     # -- core --------------------------------------------------------------
     def _detect_and_embed(
-        self, image_bgr: np.ndarray, settings: dict[str, Any], *, embed: bool = True
+        self, image_bgr: np.ndarray, settings: dict[str, Any], *, embed: bool = True,
+        multi_scale: bool = True,
     ) -> tuple[list[Detection], list[np.ndarray]]:
         h, w = image_bgr.shape[:2]
         target_w = int(settings.get("processing_width", 800))
@@ -61,7 +62,11 @@ class RecognitionPipeline:
         if scale < 0.999:
             work = cv2.resize(image_bgr, (max(1, int(w * scale)), max(1, int(h * scale))),
                               interpolation=cv2.INTER_AREA)
-        raw = self.detector.detect(work, score_threshold=float(settings.get("detector_score_threshold", 0.7)))
+        raw = self.detector.detect(
+            work,
+            score_threshold=float(settings.get("detector_score_threshold", 0.7)),
+            multi_scale=multi_scale,
+        )
         min_face = float(settings.get("min_face_size_px", 48))
         kept: list[Detection] = []
         for det in raw:
@@ -105,7 +110,8 @@ class RecognitionPipeline:
         else:
             recognize_this_frame = True
         detections, embeddings = self._detect_and_embed(
-            image_bgr, settings, embed=recognize_this_frame
+            image_bgr, settings, embed=recognize_this_frame,
+            multi_scale=(method != "live"),
         )
         matches = self._match_all(embeddings, settings) if recognize_this_frame else [None] * len(detections)
         tracks = tracker.update(detections, embeddings, matches, settings)
