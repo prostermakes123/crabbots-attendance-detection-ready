@@ -1323,43 +1323,31 @@
               </div>
               <input type="file" id="enrol-file" accept="image/jpeg,image/png,image/webp" hidden />
               <div id="enrol-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="Enrolment preview" /></div>` : ''}</div>
-              <div class="divider" style="margin:18px 0"></div>
-              <div class="row-between">
-                <div><strong>Or scan with webcam</strong><div class="small muted">Capture several angles to improve recognition.</div></div>
-                <button class="btn btn-ghost btn-sm" id="btn-camera-start">${icon('camera')} Start camera</button>
-              </div>
-              <div id="enrol-camera-wrap" class="enrol-camera-wrap hidden">
-                <div class="enrol-camera-stage">
-                  <video id="enrol-camera" autoplay muted playsinline></video>
-                  <div class="enrol-camera-guide" aria-hidden="true"></div>
-                  <div class="enrol-camera-hint">Position your face inside the guide</div>
-                </div>
-                <div class="small muted">Follow each prompt. The preview is mirrored; captured images are saved in their original orientation.</div>
-                <div class="row">
-                  <button class="btn btn-subtle btn-sm" data-scan-angle="front" disabled>1 · Look straight</button>
-                  <button class="btn btn-subtle btn-sm" data-scan-angle="left" disabled>2 · Turn left</button>
-                  <button class="btn btn-subtle btn-sm" data-scan-angle="right" disabled>3 · Turn right</button>
-                  <button class="btn btn-subtle btn-sm" data-scan-angle="tilt" disabled>4 · Tilt head</button>
-                </div>
-                <div class="row-between">
-                  <span class="small muted" id="scan-count">${add.scanFiles.length} of 4 angles captured</span>
-                  <button class="btn btn-ghost btn-sm" id="btn-camera-stop">Stop camera</button>
-                </div>
-              </div>
-              <div id="scan-thumbnails" class="scan-thumbnails">${add.scanFiles.map((file) => `<span class="badge ok">${esc(file.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('')}</div>
+              <div class="small muted mt-16" id="scan-thumbnails">${add.scanFiles.map((file) => `<span class="badge ok">${esc(file.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('')}</div>
               <div id="enrol-error" class="mt-16">${add.error ? noticeBlock('bad', 'Cannot use this photo', esc(add.error)) : ''}</div>
             </div>
           </div>
 
+          <div class="card enrol-camera-entry">
+            <div class="card-head"><div><h2>2 · Camera enrollment</h2><div class="sub">Use a guided face scan instead of uploading a photo.</div></div></div>
+            <div class="card-body row-between enrol-camera-entry-body">
+              <div class="row" style="align-items:center;gap:12px">
+                <span class="stat-icon">${icon('camera')}</span>
+                <div><strong>Sign up with the camera</strong><div class="small muted">Capture front, left, right and tilted face angles.</div></div>
+              </div>
+              <button class="btn btn-primary" id="btn-camera-start">${icon('camera')} Start camera scan</button>
+            </div>
+          </div>
+
           <div class="card" id="quality-card">
-            <div class="card-head"><h2>2 · Quality checks</h2>${add.analysis?.quality?.passed ? '<span class="badge ok dot">Passed</span>' : ''}</div>
+            <div class="card-head"><h2>3 · Quality checks</h2>${add.analysis?.quality?.passed ? '<span class="badge ok dot">Passed</span>' : ''}</div>
             <div class="card-body" id="quality-body">${qualityBlock(add.analysis)}</div>
           </div>
         </div>
 
         <div class="stack">
           <div class="card">
-            <div class="card-head"><div><h2>3 · Member details</h2><div class="sub">Saved to the local roster</div></div></div>
+            <div class="card-head"><div><h2>4 · Member details</h2><div class="sub">Saved to the local roster</div></div></div>
             <div class="card-body stack">
               ${add.done ? successBlock(add.done) : `
               <div class="field">
@@ -1445,17 +1433,6 @@
   function bindAddMember() {
     const dropzone = $('#dropzone');
     const input = $('#enrol-file');
-    const cameraVideo = $('#enrol-camera');
-    if (state.add.cameraStream && cameraVideo) {
-      cameraVideo.srcObject = state.add.cameraStream;
-      $('#enrol-camera-wrap')?.classList.remove('hidden');
-      cameraVideo.play().catch(() => {});
-    }
-    $$('[data-scan-angle]').forEach((button) => {
-      const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
-      button.disabled = !state.add.cameraStream || captured;
-      if (captured) button.classList.add('btn-primary');
-    });
     if (dropzone && input) {
       dropzone.addEventListener('click', () => input.click());
       dropzone.addEventListener('keydown', (event) => {
@@ -1511,8 +1488,6 @@
       renderAddMember();
     });
     $('#btn-camera-start')?.addEventListener('click', openEnrolScanWizard);
-    $('#btn-camera-stop')?.addEventListener('click', stopEnrolCamera);
-    $$('[data-scan-angle]').forEach((button) => button.addEventListener('click', () => captureEnrolAngle(button.dataset.scanAngle)));
   }
 
   const ENROL_SCAN_STEPS = [
@@ -1530,7 +1505,7 @@
     if (enrolWizardStep < 0) enrolWizardStep = ENROL_SCAN_STEPS.length;
     const modal = openModal({
       title: 'Sign up with the camera',
-      subtitle: 'Follow the quick head-pose prompts to create a more reliable face profile.',
+      subtitle: 'Follow the quick head-pose prompts, then enter the member details.',
       wide: true,
       body: `
         <div class="enrol-wizard">
@@ -1557,7 +1532,7 @@
         </div>`,
       actions: [
         { label: 'Cancel', class: 'btn-ghost', onClick: (close) => { stopEnrolCamera(); close(); } },
-        { label: 'Continue to details', class: 'btn-primary', onClick: (close) => { stopEnrolCamera(); close(); } },
+        { label: 'Continue to member details', class: 'btn-primary', onClick: async (close) => { if (enrolWizardStep < ENROL_SCAN_STEPS.length) return; renderEnrolWizardDetails(); } },
       ],
     });
     const continueButton = $('[data-modal-action="1"]', modal.root);
@@ -1580,6 +1555,41 @@
     renderEnrolWizardStep();
   }
 
+  function renderEnrolWizardDetails() {
+    const body = $('.modal-body');
+    const action = $('[data-modal-action="1"]');
+    if (!body) return;
+    const add = state.add;
+    body.innerHTML = `
+      <div class="enrol-wizard-details">
+        <div class="enrol-wizard-done">
+          <div class="enrol-wizard-check">✓</div>
+          <strong>Face scan complete</strong>
+          <span class="small muted">${add.scanFiles.length} camera references captured and ready to save.</span>
+        </div>
+        <div class="field"><label for="wizard-enrol-name">Full name</label><input class="input" id="wizard-enrol-name" maxlength="80" placeholder="e.g. Alex Rivera" value="${esc(add.name)}" /></div>
+        <div class="field"><label for="wizard-enrol-notes">Team, role or notes <span class="muted">(optional)</span></label><input class="input" id="wizard-enrol-notes" maxlength="200" placeholder="Team, role…" value="${esc(add.notes)}" /></div>
+        <label class="check"><input type="checkbox" id="wizard-enrol-consent" ${add.consent ? 'checked' : ''} /><span>I confirm this person consents to their face embeddings being stored for CrabBots attendance.</span></label>
+        <div id="wizard-enrol-error">${add.analysis?.duplicate ? noticeBlock('warn','Possible existing member',`This face is ${pct(add.analysis.duplicate.similarity)} similar to <strong>${esc(add.analysis.duplicate.name)}</strong>. Please verify this is a different person before continuing.`) : ''}</div>
+      </div>`;
+    const name = $('#wizard-enrol-name');
+    const notes = $('#wizard-enrol-notes');
+    const consent = $('#wizard-enrol-consent');
+    const update = () => {
+      add.name = name.value;
+      add.notes = notes.value;
+      add.consent = consent.checked;
+      if (action) action.disabled = !(add.name.trim().length >= 2 && add.consent && add.analysis?.ok);
+    };
+    [name,notes,consent].forEach((el) => el.addEventListener(el === consent ? 'change' : 'input', update));
+    if (action) {
+      action.textContent = 'Enroll member';
+      action.disabled = !(add.name.trim().length >= 2 && add.consent && add.analysis?.ok);
+      action.onclick = async (event) => { event.preventDefault(); update(); if (!action.disabled) await enrollMember(); };
+    }
+    name.focus();
+  }
+
   function renderEnrolWizardStep() {
     const title = $('#enrol-wizard-title');
     const stepLabel = $('#enrol-wizard-step');
@@ -1599,6 +1609,7 @@
       progress.style.width = '100%';
       capture.classList.add('hidden');
       done?.classList.remove('hidden');
+      capture.classList.add('hidden');
       if (continueButton) continueButton.disabled = false;
       return;
     }
@@ -1801,6 +1812,7 @@
       if (add.notes.trim()) form.append('notes', add.notes.trim());
       const member = await apiUpload('/api/members', form);
       stopEnrolCamera();
+      closeModal();
       state.add.done = member;
       state.add.analysis = null;
       state.add.file = null;
@@ -1808,6 +1820,7 @@
       toast(`${member.name} enrolled — live recognition is active`, 'success', 5200);
       renderAddMember();
     } catch (error) {
+      if ($('#enrol-wizard-capture')) { stopEnrolCamera(); closeModal(); }
       if (error.code === 'duplicate_face') {
         state.add.forceDup = false;
         state.add.analysis = { ...(state.add.analysis || {}), duplicate: error.payload?.duplicate || state.add.analysis?.duplicate };
