@@ -1499,6 +1499,14 @@
 
   let enrolWizardStep = 0;
   let enrolWizardDetailsReady = false;
+  let enrolFaceLandmarker = null;
+  let enrolFaceLandmarkerPromise = null;
+  let enrolFaceLandmarkRaf = 0;
+  let enrolFaceDrawingUtils = null;
+  let enrolFaceLastVideoTime = -1;
+  let enrolFaceLastProcessAt = 0;
+  let enrolFacePose = null;
+  let enrolFaceLandmarkerAvailable = false;
 
   async function openEnrolScanWizard() {
     enrolWizardDetailsReady = false;
@@ -1517,6 +1525,7 @@
           </div>
           <div class="enrol-wizard-stage" id="enrol-camera-wrap">
             <video id="enrol-camera" autoplay muted playsinline></video>
+            <canvas id="enrol-face-mesh" class="enrol-face-mesh" aria-hidden="true"></canvas>
             <div class="enrol-wizard-oval" aria-hidden="true"></div>
             <div class="enrol-wizard-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
           </div>
@@ -1618,7 +1627,7 @@
     const step = ENROL_SCAN_STEPS[enrolWizardStep];
     title.textContent = step.title;
     stepLabel.textContent = `Step ${enrolWizardStep + 1} of 5`;
-    hint.textContent = step.hint;
+    hint.textContent = enrolFaceLandmarkerAvailable ? 'Finding your face…' : step.hint;
     count.textContent = `${state.add.scanFiles.length} of 4 angles captured`;
     progress.style.width = `${(state.add.scanFiles.length / 4) * 100}%`;
     capture.dataset.scanAngle = step.angle;
@@ -1627,6 +1636,179 @@
     capture.disabled = !state.add.cameraStream;
     done?.classList.add('hidden');
     if (continueButton) continueButton.disabled = true;
+  }
+
+  async function loadEnrolFaceLandmarker() {
+    if (enrolFaceLandmarker) return enrolFaceLandmarker;
+    if (enrolFaceLandmarkerPromise) return enrolFaceLandmarkerPromise;
+    enrolFaceLandmarkerPromise = (async () => {
+      // MediaPipe runs in the browser; no face frames are sent to a third party.
+      const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+      const wasmRoot = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+      const modelUrl = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+      const fileset = await vision.FilesetResolver.forVisionTasks(wasmRoot);
+      const options = {
+        baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.55,
+        minFacePresenceConfidence: 0.55,
+        minTrackingConfidence: 0.55,
+        outputFacialTransformationMatrixes: true,
+      };
+      try {
+        enrolFaceLandmarker = await vision.FaceLandmarker.createFromOptions(fileset, options);
+      } catch (gpuError) {
+        options.baseOptions.delegate = 'CPU';
+        enrolFaceLandmarker = await vision.FaceLandmarker.createFromOptions(fileset, options);
+      }
+      enrolFaceDrawingUtils = new vision.DrawingUtils($('#enrol-face-mesh')?.getContext('2d'));
+      window.__crabbotsFaceMeshConnections = vision.FaceLandmarker.FACE_LANDMARKS_TESSELATION;
+      enrolFaceLandmarkerAvailable = true;
+      return enrolFaceLandmarker;
+    })().catch((error) => {
+      enrolFaceLandmarkerPromise = null;
+      enrolFaceLandmarkerAvailable = false;
+      throw error;
+    });
+    return enrolFaceLandmarkerPromise;
+  }
+
+  function getEnrolFacePose(landmarks) {
+    if (!landmarks || landmarks.length < 455) return null;
+    const leftEye = landmarks[33];
+    const rightEye = landmarks[263];
+    const nose = landmarks[1];
+    const chin = landmarks[152];
+    const leftCheek = landmarks[234];
+    const rightCheek = landmarks[454];
+    const eyeDx = rightEye.x - leftEye.x;
+    const eyeDy = rightEye.y - leftEye.y;
+    const eyeSpan = Math.max(0.001, Math.hypot(eyeDx, eyeDy));
+    const eyeMidX = (leftEye.x + rightEye.x) / 2;
+    const eyeMidY = (leftEye.y + rightEye.y) / 2;
+    const faceWidth = Math.abs(rightCheek.x - leftCheek.x);
+    const pitchRatio = (nose.y - eyeMidY) / Math.max(0.001, chin.y - eyeMidY);
+    return {
+      yaw: ((nose.x - eyeMidX) / eyeSpan) * 100,
+      pitch: (pitchRatio - 0.45) * 100,
+      roll: Math.atan2(eyeDy, eyeDx) * 180 / Math.PI,
+      faceWidth,
+      centerX: (leftCheek.x + rightCheek.x) / 2,
+      centerY: (landmarks[10].y + chin.y) / 2,
+      depth: nose.z,
+    };
+  }
+
+  function enrolPoseMatchesStep(pose, angle) {
+    if (!pose || pose.faceWidth < 0.16 || pose.faceWidth > 0.78 ||
+        pose.centerX < 0.18 || pose.centerX > 0.82 ||
+        pose.centerY < 0.16 || pose.centerY > 0.86) return false;
+    if (angle === 'front') return Math.abs(pose.yaw) < 13 && Math.abs(pose.roll) < 13 && Math.abs(pose.pitch) < 17;
+    if (angle === 'left') return pose.yaw > 13 && pose.yaw < 48 && Math.abs(pose.roll) < 24;
+    if (angle === 'right') return pose.yaw < -13 && pose.yaw > -48 && Math.abs(pose.roll) < 24;
+    if (angle === 'tilt') return Math.abs(pose.roll) > 10 && Math.abs(pose.roll) < 32;
+    return false;
+  }
+
+  function drawEnrolFaceMesh(result) {
+    const canvas = $('#enrol-face-mesh');
+    const video = $('#enrol-camera');
+    if (!canvas || !video) return;
+    const width = video.videoWidth || canvas.clientWidth;
+    const height = video.videoHeight || canvas.clientHeight;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const landmarks = result?.faceLandmarks?.[0];
+    if (!landmarks) {
+      enrolFacePose = null;
+      updateEnrolPoseFeedback(null);
+      return;
+    }
+    enrolFacePose = getEnrolFacePose(landmarks);
+    const connections = window.__crabbotsFaceMeshConnections;
+    if (enrolFaceDrawingUtils && connections) {
+      enrolFaceDrawingUtils.drawConnectors(landmarks, connections, {
+        color: 'rgba(80, 220, 190, 0.68)', lineWidth: 0.55,
+      });
+    } else {
+      ctx.fillStyle = 'rgba(80, 220, 190, 0.8)';
+      for (const point of landmarks) {
+        ctx.beginPath();
+        ctx.arc(point.x * canvas.width, point.y * canvas.height, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    updateEnrolPoseFeedback(enrolFacePose);
+  }
+
+  function updateEnrolPoseFeedback(pose) {
+    const hint = $('#enrol-wizard-hint');
+    const capture = $('#enrol-wizard-capture');
+    const angle = ENROL_SCAN_STEPS[enrolWizardStep]?.angle;
+    if (!hint || !capture || enrolWizardStep >= ENROL_SCAN_STEPS.length) return;
+    if (!enrolFaceLandmarkerAvailable) {
+      hint.textContent = '3D mapping is unavailable; you can still capture this angle manually.';
+      capture.disabled = !state.add.cameraStream;
+      return;
+    }
+    if (!pose) {
+      hint.textContent = 'Move into view so the 3D face mesh can lock on.';
+      capture.disabled = true;
+      return;
+    }
+    const matches = enrolPoseMatchesStep(pose, angle);
+    if (matches) {
+      hint.textContent = 'Face aligned — hold still and capture this angle.';
+      capture.disabled = false;
+    } else if (pose.faceWidth < 0.16) {
+      hint.textContent = 'Move a little closer so your face fills the guide.';
+      capture.disabled = true;
+    } else if (pose.faceWidth > 0.78) {
+      hint.textContent = 'Move slightly farther back.';
+      capture.disabled = true;
+    } else if (pose.centerX < 0.18 || pose.centerX > 0.82 || pose.centerY < 0.16 || pose.centerY > 0.86) {
+      hint.textContent = 'Center your face inside the oval guide.';
+      capture.disabled = true;
+    } else if (angle === 'front') {
+      hint.textContent = 'Look straight at the camera and level your head.';
+      capture.disabled = true;
+    } else if (angle === 'left') {
+      hint.textContent = 'Turn your head a little farther to your left.';
+      capture.disabled = true;
+    } else if (angle === 'right') {
+      hint.textContent = 'Turn your head a little farther to your right.';
+      capture.disabled = true;
+    } else {
+      hint.textContent = 'Tilt your head gently toward one shoulder.';
+      capture.disabled = true;
+    }
+  }
+
+  function startEnrolFaceLandmarkLoop() {
+    cancelAnimationFrame(enrolFaceLandmarkRaf);
+    const tick = () => {
+      const video = $('#enrol-camera');
+      if (!video || !state.add.cameraStream) return;
+      const now = performance.now();
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          video.currentTime !== enrolFaceLastVideoTime && now - enrolFaceLastProcessAt >= 85) {
+        enrolFaceLastVideoTime = video.currentTime;
+        enrolFaceLastProcessAt = now;
+        try {
+          const result = enrolFaceLandmarker.detectForVideo(video, now);
+          drawEnrolFaceMesh(result);
+        } catch (error) {
+          console.warn('CrabBots 3D face mapping frame failed:', error);
+        }
+      }
+      enrolFaceLandmarkRaf = requestAnimationFrame(tick);
+    };
+    enrolFaceLandmarkRaf = requestAnimationFrame(tick);
   }
 
   async function startEnrolCamera() {
@@ -1659,7 +1841,17 @@
         });
       }
       await video.play();
-      $$('[data-scan-angle]').forEach((button) => {
+      const hint = $('#enrol-wizard-hint');
+      if (hint) hint.textContent = 'Loading 3D face mapping…';
+      try {
+        await loadEnrolFaceLandmarker();
+        startEnrolFaceLandmarkLoop();
+      } catch (mappingError) {
+        console.warn('CrabBots 3D face mapping could not load:', mappingError);
+        enrolFaceLandmarkerAvailable = false;
+        if (hint) hint.textContent = '3D mapping could not load. You can still capture each angle manually.';
+      }
+      $('[data-scan-angle]').forEach((button) => {
         const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
         button.disabled = captured;
       });
@@ -1672,6 +1864,11 @@
   }
 
   function stopEnrolCamera() {
+    if (enrolFaceLandmarkRaf) cancelAnimationFrame(enrolFaceLandmarkRaf);
+    enrolFaceLandmarkRaf = 0;
+    enrolFacePose = null;
+    const meshCanvas = $('#enrol-face-mesh');
+    if (meshCanvas) meshCanvas.getContext('2d')?.clearRect(0, 0, meshCanvas.width, meshCanvas.height);
     if (state.add.cameraStream) {
       state.add.cameraStream.getTracks().forEach((track) => track.stop());
       state.add.cameraStream = null;
@@ -1695,6 +1892,10 @@
     }
     if (state.add.scanFiles.some((file) => file.name === `camera-${angle}.jpg`)) {
       toast('That angle has already been captured.', 'info');
+      return;
+    }
+    if (enrolFaceLandmarkerAvailable && !enrolPoseMatchesStep(enrolFacePose, angle)) {
+      toast('Follow the on-screen face-position guidance before capturing this angle.', 'info');
       return;
     }
     const canvas = document.createElement('canvas');
