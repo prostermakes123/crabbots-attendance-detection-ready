@@ -1587,17 +1587,22 @@
       return;
     }
     const file = new File([blob], `camera-${angle}.jpg`, { type: 'image/jpeg' });
+    file.previewUrl = URL.createObjectURL(blob);
     state.add.scanFiles.push(file);
     const count = $('#scan-count');
     if (count) count.textContent = `${state.add.scanFiles.length} of 4 angles captured`;
     const thumbs = $('#scan-thumbnails');
     if (thumbs) thumbs.innerHTML = state.add.scanFiles.map((item) =>
-      `<span class="badge ok">${esc(item.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('');
-    const button = $$('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
+      `<div class="scan-thumb"><img src="${item.previewUrl}" alt="${esc(item.name)}" /><span>${esc(item.name.replace('camera-', '').replace('.jpg', ''))}</span></div>`).join('');
+    const button = $('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
     if (button) { button.disabled = true; button.classList.add('btn-primary'); }
-    if (!state.add.file && !state.add.analysis) await analyzeEnrolImage(file);
+    // Analyse the straight-on reference once. Angled captures are retained as
+    // additional embeddings and should not be rejected for their intentional pose.
+    if (angle === 'front' && !state.add.file && !state.add.analysis) {
+      await analyzeEnrolImage(file);
+    }
     const enrolButton = $('#btn-enrol');
-    if (enrolButton) enrolButton.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
+    if (enrolButton) enrolButton.disabled = !((state.add.file || state.add.scanFiles.some((item) => item.name === 'camera-front.jpg')) && state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
     toast(`${angle[0].toUpperCase() + angle.slice(1)} angle captured`, 'success', 1800);
   }
 
@@ -1618,7 +1623,20 @@
       state.add.error = error.message;
       if (error.payload?.preview_image) state.add.errorImage = error.payload.preview_image;
     }
-    renderAddMember();
+    if (state.add.cameraStream) {
+      const quality = $('#quality-body');
+      if (quality) quality.innerHTML = qualityBlock(state.add.analysis);
+      const previewWrap = $('#enrol-preview');
+      if (previewWrap) previewWrap.innerHTML = state.add.analysis?.preview_image
+        ? `<div class="preview-wrap"><img src="${state.add.analysis.preview_image}" alt="Captured front-facing enrollment image" /></div>`
+        : '';
+      const error = $('#enrol-error');
+      if (error) error.innerHTML = state.add.error ? noticeBlock('bad', 'Cannot use this photo', esc(state.add.error)) : '';
+      const enrolButton = $('#btn-enrol');
+      if (enrolButton) enrolButton.disabled = !(state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
+    } else {
+      renderAddMember();
+    }
   }
 
   async function selectEnrolFile(file) {
