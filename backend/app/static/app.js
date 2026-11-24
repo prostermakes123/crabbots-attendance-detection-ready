@@ -1502,7 +1502,6 @@
   let enrolFaceLandmarker = null;
   let enrolFaceLandmarkerPromise = null;
   let enrolFaceLandmarkRaf = 0;
-  let enrolFaceDrawingUtils = null;
   let enrolFaceLastVideoTime = -1;
   let enrolFaceLastProcessAt = 0;
   let enrolFacePose = null;
@@ -1525,7 +1524,6 @@
           </div>
           <div class="enrol-wizard-stage" id="enrol-camera-wrap">
             <video id="enrol-camera" autoplay muted playsinline></video>
-            <canvas id="enrol-face-mesh" class="enrol-face-mesh" aria-hidden="true"></canvas>
             <div class="enrol-wizard-oval" aria-hidden="true"></div>
             <div class="enrol-wizard-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
           </div>
@@ -1662,8 +1660,6 @@
         options.baseOptions.delegate = 'CPU';
         enrolFaceLandmarker = await vision.FaceLandmarker.createFromOptions(fileset, options);
       }
-      enrolFaceDrawingUtils = new vision.DrawingUtils($('#enrol-face-mesh')?.getContext('2d'));
-      window.__crabbotsFaceMeshConnections = vision.FaceLandmarker.FACE_LANDMARKS_TESSELATION;
       enrolFaceLandmarkerAvailable = true;
       return enrolFaceLandmarker;
     })().catch((error) => {
@@ -1711,38 +1707,10 @@
     return false;
   }
 
-  function drawEnrolFaceMesh(result) {
-    const canvas = $('#enrol-face-mesh');
-    const video = $('#enrol-camera');
-    if (!canvas || !video) return;
-    const width = video.videoWidth || canvas.clientWidth;
-    const height = video.videoHeight || canvas.clientHeight;
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function processEnrolFaceLandmarks(result) {
+    // Landmarks are used internally for pose and alignment checks; no mesh is drawn.
     const landmarks = result?.faceLandmarks?.[0];
-    if (!landmarks) {
-      enrolFacePose = null;
-      updateEnrolPoseFeedback(null);
-      return;
-    }
-    enrolFacePose = getEnrolFacePose(landmarks);
-    const connections = window.__crabbotsFaceMeshConnections;
-    if (enrolFaceDrawingUtils && connections) {
-      enrolFaceDrawingUtils.drawConnectors(landmarks, connections, {
-        color: 'rgba(80, 220, 190, 0.68)', lineWidth: 0.55,
-      });
-    } else {
-      ctx.fillStyle = 'rgba(80, 220, 190, 0.8)';
-      for (const point of landmarks) {
-        ctx.beginPath();
-        ctx.arc(point.x * canvas.width, point.y * canvas.height, 1, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    enrolFacePose = landmarks ? getEnrolFacePose(landmarks) : null;
     updateEnrolPoseFeedback(enrolFacePose);
   }
 
@@ -1757,7 +1725,7 @@
       return;
     }
     if (!pose) {
-      hint.textContent = 'Move into view so the 3D face mesh can lock on.';
+      hint.textContent = 'Move into view so the facial landmarks can detect your face.';
       capture.disabled = true;
       return;
     }
@@ -1801,7 +1769,7 @@
         enrolFaceLastProcessAt = now;
         try {
           const result = enrolFaceLandmarker.detectForVideo(video, now);
-          drawEnrolFaceMesh(result);
+          processEnrolFaceLandmarks(result);
         } catch (error) {
           console.warn('CrabBots 3D face mapping frame failed:', error);
         }
@@ -1867,8 +1835,6 @@
     if (enrolFaceLandmarkRaf) cancelAnimationFrame(enrolFaceLandmarkRaf);
     enrolFaceLandmarkRaf = 0;
     enrolFacePose = null;
-    const meshCanvas = $('#enrol-face-mesh');
-    if (meshCanvas) meshCanvas.getContext('2d')?.clearRect(0, 0, meshCanvas.width, meshCanvas.height);
     if (state.add.cameraStream) {
       state.add.cameraStream.getTracks().forEach((track) => track.stop());
       state.add.cameraStream = null;
