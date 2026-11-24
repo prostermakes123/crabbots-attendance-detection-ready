@@ -136,10 +136,8 @@ class RecognitionPipeline:
                 track.attendance_recorded = True
                 if result["created"]:
                     events.append(result["record"])
-            elif record and track.status == "unknown" and not track.unknown_logged:
-                attendance_service.record_unknown(session_id, track.id, track.best_similarity, source)
-                track.unknown_logged = True
-                unknown_events.append({"track_id": track.id, "confidence": round(track.best_similarity, 4)})
+            # Unknown faces are tracked visually only. They are never written
+            # to attendance or unknown-visitor logs.
 
         payload = [self._detection_payload(track) for track in tracks if track.missed == 0]
         payload.sort(key=lambda d: (d["status"] != "recognized", -d["confidence"]))
