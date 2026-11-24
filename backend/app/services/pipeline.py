@@ -156,6 +156,7 @@ class RecognitionPipeline:
             "hits": track.hits,
             "evidence": len(track.evidence),
             "attendance_recorded": track.attendance_recorded,
+            "head_pose": [round(v, 1) for v in track.head_pose] if track.head_pose is not None else None,
         }
 
     # -- single photo ------------------------------------------------------
