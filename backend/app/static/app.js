@@ -233,6 +233,8 @@
   }
 
   function closeModal() {
+    // If the guided enrollment wizard is dismissed (including Escape), release its camera.
+    if ($('#enrol-wizard-capture')) stopEnrolCamera();
     const root = $('#modal-root');
     if (root) root.innerHTML = '';
     if (modalCleanup) {
