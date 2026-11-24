@@ -58,9 +58,10 @@ def test_pipeline_keeps_more_detail_for_small_faces():
             self.shape = None
             self.threshold = None
 
-        def detect(self, image, score_threshold=None):
+        def detect(self, image, score_threshold=None, *, multi_scale=True):
             self.shape = image.shape
             self.threshold = score_threshold
+            self.multi_scale = multi_scale
             return [Detection(
                 (100.0, 80.0, 40.0, 40.0),
                 np.zeros((5, 2), dtype=np.float32),
@@ -91,6 +92,7 @@ def test_pipeline_keeps_more_detail_for_small_faces():
 
     assert detector.shape[:2] == (450, 800)
     assert detector.threshold == 0.65
+    assert detector.multi_scale is True
     assert recognizer.source_shape == image.shape
     assert detections[0].bbox == (200.0, 160.0, 80.0, 80.0)
     assert len(embeddings) == 1
