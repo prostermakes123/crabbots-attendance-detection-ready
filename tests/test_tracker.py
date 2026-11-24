@@ -68,3 +68,14 @@ def test_tracker_uses_motion_prediction_after_a_missed_frame():
     assert recovered[0].id == first[0].id
     assert recovered[0].missed == 0
 
+
+
+def test_tracker_preserves_latest_head_pose_for_detection():
+    tracker = MultiFaceTracker()
+    unknown = MatchResult(False, reason="no_candidates")
+    detection = _detection()
+    detection.head_pose = (12.0, -4.0, 2.0)
+
+    tracks = tracker.update([detection], [np.ones(128)], [unknown], _settings())
+
+    assert tracks[0].head_pose == (12.0, -4.0, 2.0)
