@@ -1539,7 +1539,7 @@
         });
       }
       await video.play();
-      $$$('[data-scan-angle]').forEach((button) => {
+      $$('[data-scan-angle]').forEach((button) => {
         const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
         button.disabled = captured;
       });
@@ -1564,7 +1564,7 @@
     $('#enrol-camera-wrap')?.classList.add('hidden');
     const startButton = $('#btn-camera-start');
     if (startButton) startButton.disabled = false;
-    $$$('[data-scan-angle]').forEach((button) => { button.disabled = true; });
+    $$('[data-scan-angle]').forEach((button) => { button.disabled = true; });
   }
 
   async function captureEnrolAngle(angle) {
