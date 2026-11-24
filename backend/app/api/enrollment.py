@@ -144,6 +144,19 @@ def enroll(
         detections, embeddings = pipeline._detect_and_embed(candidate, settings)  # noqa: SLF001
         if len(detections) != 1 or len(embeddings) != 1:
             raise EnrollmentError("invalid_scan", "Each enrollment image must contain exactly one clear face.")
+
+        # Angle captures may be turned or tilted, but they still need to be
+        # sharp, well exposed, and large enough to produce a reliable template.
+        # assess_face treats pose as a warning, not a hard failure.
+        if index > 0:
+            scan_quality = assess_face(candidate, detections[0], settings)
+            if not scan_quality["passed"]:
+                raise EnrollmentError(
+                    "low_quality_scan",
+                    f"Additional camera scan {index} is not clear enough: {scan_quality['summary']}",
+                    details={"scan_index": index, "quality": scan_quality},
+                )
+
         if primary_detection is None:
             primary_detection = detections[0]
         vectors.append(embeddings[0])
