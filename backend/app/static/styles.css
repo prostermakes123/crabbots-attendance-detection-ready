@@ -667,3 +667,14 @@ tbody tr:hover { background: #202020; }
 .btn-subtle:hover { background: #2a2a2a; }
 .check, .form-label, label { color: var(--ink-soft); }
 ::selection { background: rgba(255, 121, 0, 0.28); }
+
+
+/* Camera device dropdown: readable dark text on its light native menu. */
+#camera-select {
+  color: #111111 !important;
+  background-color: #ffffff !important;
+}
+#camera-select option {
+  color: #111111 !important;
+  background-color: #ffffff !important;
+}
