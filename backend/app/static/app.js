@@ -1599,7 +1599,7 @@
     const thumbs = $('#scan-thumbnails');
     if (thumbs) thumbs.innerHTML = state.add.scanFiles.map((item) =>
       `<div class="scan-thumb"><img src="${item.previewUrl}" alt="${esc(item.name)}" /><span>${esc(item.name.replace('camera-', '').replace('.jpg', ''))}</span></div>`).join('');
-    const button = $('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
+    const button = $$('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
     if (button) { button.disabled = true; button.classList.add('btn-primary'); }
     // Analyse the straight-on reference once. Angled captures are retained as
     // additional embeddings and should not be rejected for their intentional pose.
