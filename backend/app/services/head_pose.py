@@ -28,9 +28,7 @@ def estimate_head_pose(landmarks: np.ndarray, image_size: tuple[int, int]) -> tu
     if np.ptp(points[:, 0]) < 3 or np.ptp(points[:, 1]) < 3:
         return None
 
-    model = _FACE_MODEL.copy()
-    # The two mouth corners are vertically below the nose.
-    model[3, 1] = -30.0
+    model = _FACE_MODEL
     focal = float(max(width, height))
     camera = np.array([[focal, 0.0, width / 2.0],
                        [0.0, focal, height / 2.0],
@@ -38,7 +36,7 @@ def estimate_head_pose(landmarks: np.ndarray, image_size: tuple[int, int]) -> tu
     distortion = np.zeros((4, 1), dtype=np.float64)
     try:
         ok, rotation, _translation = cv2.solvePnP(
-            model, points, camera, distortion, flags=cv2.SOLVEPNP_ITERATIVE
+            model, points, camera, distortion, flags=cv2.SOLVEPNP_EPNP
         )
         if not ok:
             return None
