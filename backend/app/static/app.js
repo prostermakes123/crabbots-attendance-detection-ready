@@ -899,13 +899,13 @@
       live.timer = setTimeout(captureFrame, 250);
       return;
     }
-    const targetWidth = Math.min(640, video.videoWidth);
+    const targetWidth = Math.min(800, video.videoWidth);
     const scale = targetWidth / video.videoWidth;
     frameCanvas.width = targetWidth;
     frameCanvas.height = Math.round(video.videoHeight * scale);
     const ctx = frameCanvas.getContext('2d');
     ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-    const image = frameCanvas.toDataURL('image/jpeg', 0.72);
+    const image = frameCanvas.toDataURL('image/jpeg', 0.82);
     live.sentImage = { w: frameCanvas.width, h: frameCanvas.height };
     try {
       live.ws.send(
