@@ -130,7 +130,13 @@ class FaceDetector:
             return cv2.cvtColor(image_bgr, cv2.COLOR_BGRA2BGR)
         return image_bgr
 
-    def detect(self, image_bgr: np.ndarray, score_threshold: float | None = None) -> list[Detection]:
+    def detect(
+        self,
+        image_bgr: np.ndarray,
+        score_threshold: float | None = None,
+        *,
+        multi_scale: bool = True,
+    ) -> list[Detection]:
         image = self._validate_image(image_bgr)
         h, w = image.shape[:2]
         if h < 8 or w < 8:
@@ -142,7 +148,11 @@ class FaceDetector:
 
         if self.backend == "haar":
             return self._detect_haar(image)
-        return self._detect_yunet(image, threshold)
+        if multi_scale:
+            return self._detect_yunet(image, threshold)
+        # Live mode uses one YuNet pass to avoid paying for the enlarged
+        # recovery pass on every camera frame. Photo/video analysis can opt in.
+        return self._run_yunet(image, threshold)
 
     def detect_resized(
         self,
