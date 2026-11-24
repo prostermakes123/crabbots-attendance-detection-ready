@@ -52,7 +52,7 @@ class RecognitionPipeline:
 
     # -- core --------------------------------------------------------------
     def _detect_and_embed(
-        self, image_bgr: np.ndarray, settings: dict[str, Any]
+        self, image_bgr: np.ndarray, settings: dict[str, Any], *, embed: bool = True
     ) -> tuple[list[Detection], list[np.ndarray]]:
         h, w = image_bgr.shape[:2]
         target_w = int(settings.get("processing_width", 800))
@@ -68,6 +68,8 @@ class RecognitionPipeline:
             if det.bbox[2] < min_face or det.bbox[3] < min_face:
                 continue
             kept.append(det.scaled(1.0 / scale) if scale < 0.999 else det)
+        if not embed:
+            return kept, []
         embeddings: list[np.ndarray] = []
         usable: list[Detection] = []
         for det in kept:
@@ -94,7 +96,6 @@ class RecognitionPipeline:
     ) -> dict[str, Any]:
         started = time.perf_counter()
         settings = self.settings()
-        detections, embeddings = self._detect_and_embed(image_bgr, settings)
         # Keep detection/tracking responsive every frame, but run the heavier
         # SFace embedding + gallery search every second live frame.
         # New tracks remain pending until the next recognition frame.
@@ -103,11 +104,10 @@ class RecognitionPipeline:
             recognize_this_frame = self._live_recognition_toggle
         else:
             recognize_this_frame = True
-        if recognize_this_frame:
-            matches = self._match_all(embeddings, settings)
-        else:
-            embeddings = []
-            matches = [None] * len(detections)
+        detections, embeddings = self._detect_and_embed(
+            image_bgr, settings, embed=recognize_this_frame
+        )
+        matches = self._match_all(embeddings, settings) if recognize_this_frame else [None] * len(detections)
         tracks = tracker.update(detections, embeddings, matches, settings)
 
         events: list[dict[str, Any]] = []
