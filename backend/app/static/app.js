@@ -1549,8 +1549,6 @@
           </div>
           <div class="enrol-wizard-stage" id="enrol-camera-wrap">
             <video id="enrol-camera" autoplay muted playsinline></video>
-            <div class="enrol-wizard-oval" aria-hidden="true"></div>
-            <div class="enrol-wizard-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
           </div>
           <div class="enrol-wizard-status" id="enrol-wizard-hint">Starting your camera…</div>
           <div class="enrol-wizard-progress"><span id="enrol-wizard-progress"></span></div>
