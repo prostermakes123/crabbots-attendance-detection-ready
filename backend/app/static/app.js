@@ -1327,8 +1327,12 @@
                 <button class="btn btn-ghost btn-sm" id="btn-camera-start">${icon('camera')} Start camera</button>
               </div>
               <div id="enrol-camera-wrap" class="enrol-camera-wrap hidden">
-                <video id="enrol-camera" autoplay muted playsinline></video>
-                <div class="small muted">Follow each prompt and keep your face well lit and inside the frame.</div>
+                <div class="enrol-camera-stage">
+                  <video id="enrol-camera" autoplay muted playsinline></video>
+                  <div class="enrol-camera-guide" aria-hidden="true"></div>
+                  <div class="enrol-camera-hint">Position your face inside the guide</div>
+                </div>
+                <div class="small muted">Follow each prompt. The preview is mirrored; captured images are saved in their original orientation.</div>
                 <div class="row">
                   <button class="btn btn-subtle btn-sm" data-scan-angle="front" disabled>1 · Look straight</button>
                   <button class="btn btn-subtle btn-sm" data-scan-angle="left" disabled>2 · Turn left</button>
