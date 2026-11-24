@@ -1851,7 +1851,7 @@
         enrolFaceLandmarkerAvailable = false;
         if (hint) hint.textContent = '3D mapping could not load. You can still capture each angle manually.';
       }
-      $('[data-scan-angle]').forEach((button) => {
+      $$('[data-scan-angle]').forEach((button) => {
         const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
         button.disabled = captured;
       });
