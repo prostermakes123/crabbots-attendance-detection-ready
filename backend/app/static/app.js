@@ -1255,7 +1255,7 @@
                 ${icon('search', '')}
                 <input class="input" id="member-search" placeholder="Search members…" value="${esc(search)}" style="padding-left:34px;min-width:220px" />
               </div>
-              <a class="btn btn-primary" href="#/add">${icon('plus')} Enrol member</a>
+              <a class="btn btn-primary" href="#/add">${icon('plus')} Enroll member</a>
             </div>
           </div>
           <div class="card-body" id="member-grid-wrap">${memberGrid(state.members, search)}</div>
@@ -1365,7 +1365,7 @@
               ${add.forceDup ? '<span class="badge warn">Duplicate override enabled</span>' : ''}
               <div class="row">
                 <button class="btn btn-primary" id="btn-enrol" ${add.analysis?.ok && add.name.trim().length >= 2 && add.consent ? '' : 'disabled'}>
-                  ${icon('userPlus')} Enrol member
+                  ${icon('userPlus')} Enroll member
                 </button>
                 ${add.analysis?.duplicate && !add.forceDup ? '<button class="btn btn-ghost" id="btn-force-dup">It\'s a different person</button>' : ''}
               </div>
