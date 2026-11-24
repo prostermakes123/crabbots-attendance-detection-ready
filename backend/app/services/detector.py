@@ -186,17 +186,12 @@ class FaceDetector:
     def _suppress_overlaps(
         detections: list[Detection], iou_threshold: float = 0.45
     ) -> list[Detection]:
-        """Deduplicate boxes from image-pyramid passes, preferring higher YuNet scores."""
-        ordered = sorted(
-            detections,
-            key=lambda det: (
-                float(det.score) if det.score is not None else -1.0,
-                det.bbox[2] * det.bbox[3],
-            ),
-            reverse=True,
-        )
+        """Deduplicate boxes while preserving original-resolution detections over enlarged-pass duplicates."""
+        # Keep input priority: _detect_yunet supplies original-resolution boxes
+        # first, followed by enlarged-pass boxes. The original landmarks are the
+        # stable SFace alignment reference for faces both passes can see.
         kept: list[Detection] = []
-        for candidate in ordered:
+        for candidate in detections:
             x1, y1, w1, h1 = candidate.bbox
             area1 = w1 * h1
             overlaps = False
