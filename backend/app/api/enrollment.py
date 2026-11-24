@@ -123,10 +123,13 @@ def enroll(
         raise EnrollmentError("too_many_images", "Use at most six face images per member.")
 
     settings = pipeline.settings()
-    reports = [analyze(pipeline, candidate) for candidate in images]
-    duplicates = [report["duplicate"] for report in reports if report["duplicate"]]
-    if duplicates and not force_duplicate:
-        dup = max(duplicates, key=lambda item: item["similarity"])
+    # The straight-on primary image passes the full quality and duplicate gates.
+    # Additional camera captures intentionally contain turned/tilted poses, so
+    # validate that each contains one detectable face without applying the
+    # front-facing pose quality gate to those reference angles.
+    primary_report = analyze(pipeline, image)
+    if primary_report["duplicate"] and not force_duplicate:
+        dup = primary_report["duplicate"]
         raise EnrollmentError(
             "duplicate_face",
             f"This face already looks like {dup['name']} ({dup['similarity'] * 100:.0f}% similar). "
@@ -137,7 +140,7 @@ def enroll(
 
     vectors: list[np.ndarray] = []
     primary_detection = None
-    for candidate in images:
+    for index, candidate in enumerate(images):
         detections, embeddings = pipeline._detect_and_embed(candidate, settings)  # noqa: SLF001
         if len(detections) != 1 or len(embeddings) != 1:
             raise EnrollmentError("invalid_scan", "Each enrollment image must contain exactly one clear face.")
@@ -167,7 +170,7 @@ def enroll(
     except ValueError as exc:
         raise EnrollmentError("invalid_input", str(exc), status_code=400) from exc
 
-    member["preview_image"] = reports[0]["preview_image"]
-    member["quality"] = reports[0]["quality"]
+    member["preview_image"] = primary_report["preview_image"]
+    member["quality"] = primary_report["quality"]
     member["enrollment_images"] = len(images)
     return member
