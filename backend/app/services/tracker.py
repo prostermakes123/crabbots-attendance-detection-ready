@@ -64,6 +64,7 @@ class Track:
     unknown_logged: bool = False
     session_id: str | None = None
     evidence: deque[Evidence] = field(default_factory=deque)
+    velocity: tuple[float, float] = (0.0, 0.0)  # smoothed center displacement per processed frame
 
     def add_evidence(self, item: Evidence, window: int) -> None:
         if self.evidence.maxlen != window:
@@ -92,17 +93,50 @@ class MultiFaceTracker:
         self._next_id = 1
 
     # -- association -------------------------------------------------------
+    @staticmethod
+    def _center(bbox: tuple[float, float, float, float]) -> tuple[float, float]:
+        x, y, w, h = bbox
+        return x + w / 2.0, y + h / 2.0
+
+    @staticmethod
+    def _shifted(
+        bbox: tuple[float, float, float, float],
+        velocity: tuple[float, float],
+        frames: int,
+    ) -> tuple[float, float, float, float]:
+        x, y, w, h = bbox
+        return x + velocity[0] * frames, y + velocity[1] * frames, w, h
+
     def _associate(
         self, detections: list[Detection], iou_threshold: float
     ) -> tuple[dict[int, int], list[int]]:
-        """Return {track_id: detection_index} and unmatched detection indices."""
+        """Associate detections to motion-predicted tracks.
+
+        IoU remains the primary signal, but a center-distance gate allows a
+        moving track to survive a frame where its new box no longer overlaps
+        its previous box. Matching is deterministic and one-to-one.
+        """
         pairs: list[tuple[float, int, int]] = []
         for tid, track in self.tracks.items():
+            predicted = self._shifted(track.bbox, track.velocity, track.missed + 1)
+            pcx, pcy = self._center(predicted)
+            _, _, pw, ph = predicted
+            predicted_diag = max(1.0, (pw * pw + ph * ph) ** 0.5)
             for di, det in enumerate(detections):
-                score = iou(track.bbox, det.bbox)
-                if score >= iou_threshold:
-                    pairs.append((score, tid, di))
-        pairs.sort(reverse=True)
+                overlap = iou(predicted, det.bbox)
+                dcx, dcy = self._center(det.bbox)
+                _, _, dw, dh = det.bbox
+                detection_diag = max(1.0, (dw * dw + dh * dh) ** 0.5)
+                distance = ((pcx - dcx) ** 2 + (pcy - dcy) ** 2) ** 0.5
+                scale = max(predicted_diag, detection_diag)
+                distance_limit = scale * (1.25 + 0.35 * track.missed)
+                if overlap < iou_threshold and distance > distance_limit:
+                    continue
+                proximity = max(0.0, 1.0 - distance / max(distance_limit, 1.0))
+                score = overlap + 0.35 * proximity
+                pairs.append((score, tid, di))
+
+        pairs.sort(key=lambda item: (-item[0], item[1], item[2]))
         used_tracks: set[int] = set()
         used_dets: set[int] = set()
         matches: dict[int, int] = {}
@@ -145,6 +179,17 @@ class MultiFaceTracker:
         for tid, di in associations.items():
             track = self.tracks[tid]
             det = detections[di]
+            previous_center = self._center(track.bbox)
+            current_center = self._center(det.bbox)
+            elapsed = max(1, track.missed + 1)
+            measured = (
+                (current_center[0] - previous_center[0]) / elapsed,
+                (current_center[1] - previous_center[1]) / elapsed,
+            )
+            track.velocity = (
+                0.65 * track.velocity[0] + 0.35 * measured[0],
+                0.65 * track.velocity[1] + 0.35 * measured[1],
+            )
             track.bbox = det.bbox
             track.last_frame = frame
             track.hits += 1
