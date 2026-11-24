@@ -155,7 +155,7 @@ class MultiFaceTracker:
         self,
         detections: list[Detection],
         embeddings: list,
-        matches: list[MatchResult],
+        matches: list[MatchResult | None],
         settings: dict[str, Any],
     ) -> list[Track]:
         self.frame_index += 1
@@ -197,8 +197,9 @@ class MultiFaceTracker:
             track.hits += 1
             track.missed = 0
             result = matches[di]
-            self._apply_evidence(track, result, frame, window)
-            self._decide(track, frame, min_hits, consistency, threshold, window)
+            if result is not None:
+                self._apply_evidence(track, result, frame, window)
+                self._decide(track, frame, min_hits, consistency, threshold, window)
 
         # Create tracks for unmatched detections.
         for di in unmatched:
@@ -207,8 +208,10 @@ class MultiFaceTracker:
                           head_pose=det.head_pose)
             self._next_id += 1
             self.tracks[track.id] = track
-            self._apply_evidence(track, matches[di], frame, window)
-            self._decide(track, frame, min_hits, consistency, threshold, window)
+            result = matches[di]
+            if result is not None:
+                self._apply_evidence(track, result, frame, window)
+                self._decide(track, frame, min_hits, consistency, threshold, window)
 
         return list(self.tracks.values())
 
