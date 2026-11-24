@@ -79,3 +79,18 @@ def test_tracker_preserves_latest_head_pose_for_detection():
     tracks = tracker.update([detection], [np.ones(128)], [unknown], _settings())
 
     assert tracks[0].head_pose == (12.0, -4.0, 2.0)
+
+
+def test_tracker_keeps_track_without_adding_evidence_on_skipped_recognition_frame():
+    tracker = MultiFaceTracker()
+    unknown = MatchResult(False, reason="no_candidates")
+    tracker.update([_detection()], [np.ones(128)], [unknown], _settings())
+    track = next(iter(tracker.tracks.values()))
+    evidence_before = len(track.evidence)
+
+    tracks = tracker.update([_detection(x=12.0)], [], [None], _settings())
+
+    assert len(tracks) == 1
+    assert tracks[0].id == track.id
+    assert len(tracks[0].evidence) == evidence_before
+    assert tracks[0].hits == 2
