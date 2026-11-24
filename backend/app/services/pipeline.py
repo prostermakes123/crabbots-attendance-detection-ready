@@ -54,7 +54,7 @@ class RecognitionPipeline:
         self, image_bgr: np.ndarray, settings: dict[str, Any]
     ) -> tuple[list[Detection], list[np.ndarray]]:
         h, w = image_bgr.shape[:2]
-        target_w = int(settings.get("processing_width", 640))
+        target_w = int(settings.get("processing_width", 800))
         scale = min(1.0, target_w / float(w)) if w else 1.0
         work = image_bgr
         if scale < 0.999:
