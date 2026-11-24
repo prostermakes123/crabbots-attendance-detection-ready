@@ -338,7 +338,7 @@
     return noticeBlock(
       'warn',
       'Face models are not installed',
-      'Run <span class="mono">python scripts/download_models.py</span> in the project folder, then restart the server. Recognition and enrolment are unavailable until then.',
+      'Run <span class="mono">python scripts/download_models.py</span> in the project folder, then restart the server. Recognition and enrollment are unavailable until then.',
     );
   }
 
@@ -1322,7 +1322,7 @@
                 <span>JPG, PNG or WebP · max ${state.settings?.values?.max_upload_mb || 12} MB · exactly one person</span>
               </div>
               <input type="file" id="enrol-file" accept="image/jpeg,image/png,image/webp" hidden />
-              <div id="enrol-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="Enrolment preview" /></div>` : ''}</div>
+              <div id="enrol-preview" class="mt-16">${add.analysis?.preview_image || add.errorImage ? `<div class="preview-wrap"><img src="${add.analysis?.preview_image || add.errorImage}" alt="Enrollment preview" /></div>` : ''}</div>
               <div class="small muted mt-16" id="scan-thumbnails">${add.scanFiles.map((file) => `<span class="badge ok">${esc(file.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('')}</div>
               <div id="enrol-error" class="mt-16">${add.error ? noticeBlock('bad', 'Cannot use this photo', esc(add.error)) : ''}</div>
             </div>
@@ -1375,7 +1375,7 @@
           </div>
 
           <div class="card">
-            <div class="card-head"><h2>How enrolment works</h2></div>
+            <div class="card-head"><h2>How enrollment works</h2></div>
             <div class="card-body stack" style="gap:10px">
               ${stepRow('scan', 'Detect', 'YuNet finds the face and five landmarks.')}
               ${stepRow('shield', 'Validate', 'Sharpness, lighting, size and pose are checked.')}
