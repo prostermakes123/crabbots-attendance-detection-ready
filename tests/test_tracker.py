@@ -43,3 +43,28 @@ def test_tracker_expires_lost_tracks():
     for _ in range(4):
         tracker.update([], [], [], _settings())
     assert tracker.tracks == {}
+
+def test_tracker_keeps_id_during_fast_non_overlapping_motion():
+    tracker = MultiFaceTracker()
+    unknown = MatchResult(False, reason='no_candidates')
+
+    first = tracker.update([_detection(10)], [np.ones(128)], [unknown], _settings())
+    second = tracker.update([_detection(70)], [np.ones(128)], [unknown], _settings())
+
+    assert first[0].id == second[0].id
+    assert second[0].velocity[0] > 0
+
+
+def test_tracker_uses_motion_prediction_after_a_missed_frame():
+    tracker = MultiFaceTracker()
+    unknown = MatchResult(False, reason='no_candidates')
+
+    first = tracker.update([_detection(10)], [np.ones(128)], [unknown], _settings())
+    tracker.update([_detection(70)], [np.ones(128)], [unknown], _settings())
+    tracker.update([], [], [], _settings())
+    recovered = tracker.update([_detection(130)], [np.ones(128)], [unknown], _settings())
+
+    assert len(recovered) == 1
+    assert recovered[0].id == first[0].id
+    assert recovered[0].missed == 0
+
