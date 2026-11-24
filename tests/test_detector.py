@@ -82,7 +82,9 @@ def test_multiscale_overlap_suppression_keeps_highest_score():
 
     kept = FaceDetector._suppress_overlaps([low_score, separate, high_score])
 
-    assert kept == [high_score, separate]
+    assert len(kept) == 2
+    assert kept[0] is high_score
+    assert kept[1] is separate
 
 
 def test_multiscale_overlap_suppression_keeps_non_overlapping_faces():
