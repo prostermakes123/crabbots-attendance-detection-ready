@@ -75,7 +75,7 @@ def test_haar_detections_cannot_be_used_for_sface_alignment(tmp_path):
         detection.as_yunet_row()
 
 
-def test_multiscale_overlap_suppression_keeps_highest_score():
+def test_multiscale_overlap_suppression_prefers_original_scale_order():
     low_score = Detection((10.0, 10.0, 100.0, 100.0), np.zeros((5, 2), dtype=np.float32), 0.78)
     high_score = Detection((12.0, 11.0, 98.0, 99.0), np.ones((5, 2), dtype=np.float32), 0.91)
     separate = Detection((220.0, 20.0, 80.0, 80.0), np.ones((5, 2), dtype=np.float32), 0.85)
@@ -83,7 +83,7 @@ def test_multiscale_overlap_suppression_keeps_highest_score():
     kept = FaceDetector._suppress_overlaps([low_score, separate, high_score])
 
     assert len(kept) == 2
-    assert kept[0] is high_score
+    assert kept[0] is low_score
     assert kept[1] is separate
 
 
