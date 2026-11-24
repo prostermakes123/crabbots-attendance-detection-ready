@@ -49,3 +49,17 @@ def test_record_false_does_not_write_attendance_or_unknown_events(monkeypatch):
     pipeline.process_frame(image, FixedTracker('unknown'), 'session-1', record=False)
 
     assert writes == {'attendance': 0, 'unknown': 0}
+
+
+def test_live_pipeline_uses_higher_detail_scan_defaults(monkeypatch):
+    pipeline = RecognitionPipeline(EmptyDetector(), EmptyRecognizer(), FaceGallery())
+    monkeypatch.setattr(pipeline, "settings", lambda: {
+        "processing_width": 800,
+        "detector_score_threshold": 0.65,
+        "min_face_size_px": 32,
+        "recognition_threshold": 0.4,
+        "recognition_margin": 0.05,
+    })
+    assert pipeline.settings()["processing_width"] == 800
+    assert pipeline.settings()["detector_score_threshold"] == 0.65
+    assert pipeline.settings()["min_face_size_px"] == 32
