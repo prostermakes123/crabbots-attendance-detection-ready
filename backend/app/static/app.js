@@ -1498,8 +1498,10 @@
   ];
 
   let enrolWizardStep = 0;
+  let enrolWizardDetailsReady = false;
 
   async function openEnrolScanWizard() {
+    enrolWizardDetailsReady = false;
     enrolWizardStep = ENROL_SCAN_STEPS.findIndex((step) =>
       !state.add.scanFiles.some((file) => file.name === `camera-${step.angle}.jpg`));
     if (enrolWizardStep < 0) enrolWizardStep = ENROL_SCAN_STEPS.length;
@@ -1532,7 +1534,7 @@
         </div>`,
       actions: [
         { label: 'Cancel', class: 'btn-ghost', onClick: (close) => { stopEnrolCamera(); close(); } },
-        { label: 'Continue to member details', class: 'btn-primary', onClick: async (close) => { if (enrolWizardStep < ENROL_SCAN_STEPS.length) return; renderEnrolWizardDetails(); } },
+        { label: 'Continue to member details', class: 'btn-primary', onClick: async () => { if (!enrolWizardDetailsReady) renderEnrolWizardDetails(); else await enrollMember(); } },
       ],
     });
     const continueButton = $('[data-modal-action="1"]', modal.root);
@@ -1559,6 +1561,7 @@
     const body = $('.modal-body');
     const action = $('[data-modal-action="1"]');
     if (!body) return;
+    enrolWizardDetailsReady = true;
     const add = state.add;
     body.innerHTML = `
       <div class="enrol-wizard-details">
@@ -1585,7 +1588,6 @@
     if (action) {
       action.textContent = 'Enroll member';
       action.disabled = !(add.name.trim().length >= 2 && add.consent && add.analysis?.ok);
-      action.onclick = async (event) => { event.preventDefault(); update(); if (!action.disabled) await enrollMember(); };
     }
     name.focus();
   }
