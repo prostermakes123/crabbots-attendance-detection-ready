@@ -506,17 +506,6 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; col
 .member-meta { font-size: 11.5px; color: var(--muted); }
 .member-actions { display: flex; gap: 6px; margin-top: auto; }
 
-.enrol-face-mesh {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: scaleX(-1);
-  pointer-events: none;
-}
-.enrol-wizard-oval { z-index: 3; }
-.enrol-wizard-corners { z-index: 4; }
 /* ---------- Guided camera enrollment ---------- */
 .enrol-wizard { display: grid; gap: 12px; }
 .enrol-wizard-heading { text-align: center; display: grid; gap: 4px; }
