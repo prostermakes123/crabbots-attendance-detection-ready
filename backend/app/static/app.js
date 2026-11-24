@@ -1569,8 +1569,8 @@
 
   async function captureEnrolAngle(angle) {
     const video = $('#enrol-camera');
-    if (!video || !video.videoWidth || !video.videoHeight) {
-      toast('Wait for the camera image to appear, then try again.', 'info');
+    if (!video || !video.videoWidth || !video.videoHeight || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      toast('Wait for the camera image to appear clearly, then try again.', 'info');
       return;
     }
     if (state.add.scanFiles.some((file) => file.name === `camera-${angle}.jpg`)) {
@@ -1580,9 +1580,14 @@
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const context = canvas.getContext('2d');
+    if (!context) {
+      toast('The browser could not prepare an image capture. Please try again.', 'error');
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if (!blob) {
+    if (!blob || !blob.size) {
       toast('Could not capture this camera frame. Please try again.', 'error');
       return;
     }
