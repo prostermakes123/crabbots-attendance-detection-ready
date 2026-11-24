@@ -27,8 +27,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Recognition
     "recognition_threshold": 0.42,     # cosine similarity required to accept
     "recognition_margin": 0.06,        # top1 - top2 gap required (ambiguity guard)
-    "detector_score_threshold": 0.70,
-    "min_face_size_px": 48,            # minimum face width at processing resolution
+    "detector_score_threshold": 0.65,
+    "min_face_size_px": 32,            # minimum face width at processing resolution
     # Tracking / temporal evidence
     "track_iou_threshold": 0.30,
     "track_max_age_frames": 24,
@@ -39,7 +39,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "attendance_cooldown_seconds": 300,
     "attendance_require_session": True,
     # Capture / performance
-    "processing_width": 640,
+    "processing_width": 800,
     "target_fps": 8,
     # Enrollment quality gates
     "enroll_min_face_ratio": 0.12,
@@ -119,6 +119,20 @@ def init_db() -> None:
             "INSERT OR IGNORE INTO settings(key, value, updated_at) VALUES (?, ?, ?)",
             (key, json.dumps(value), now),
         )
+
+    # Upgrade untouched legacy scan defaults while preserving any operator tuning.
+    legacy_scan_defaults = {
+        "detector_score_threshold": (0.70, 0.65),
+        "min_face_size_px": (48, 32),
+        "processing_width": (640, 800),
+    }
+    for key, (old_value, new_value) in legacy_scan_defaults.items():
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        if row and json.loads(row["value"]) == old_value:
+            conn.execute(
+                "UPDATE settings SET value = ?, updated_at = ? WHERE key = ?",
+                (json.dumps(new_value), now, key),
+            )
     conn.commit()
     log.info("database ready at %s", CONFIG.db_path)
 
