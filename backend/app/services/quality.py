@@ -1,7 +1,7 @@
-"""Image quality assessment for enrolment and recognition.
+"""Image quality assessment for enrollment and recognition.
 
 These are cheap, explainable heuristics (no extra model): sharpness, exposure,
-face size, and landmark-based pose. They gate enrolment so a blurry or tiny
+face size, and landmark-based pose. They gate enrollment so a blurry or tiny
 photo cannot poison the gallery.
 """
 
@@ -85,14 +85,14 @@ def assess_face(
         f"{int(bw)}x{int(bh)} px", "Use a higher-resolution photograph.")
     add("pose", "Frontal pose", pose["yaw_ratio"] <= 0.38 and pose["roll_deg"] <= 22,
         f"yaw {pose['yaw_ratio']:.2f}, roll {pose['roll_deg']:.0f}°",
-        "Face the camera more directly for enrolment.", severity="warn")
+        "Face the camera more directly for enrollment.", severity="warn")
 
     failed = [c for c in checks if not c["passed"] and c["severity"] == "fail"]
     warned = [c for c in checks if not c["passed"] and c["severity"] == "warn"]
     passed = not failed
 
     if passed and not warned:
-        summary = "Excellent enrolment photo."
+        summary = "Excellent enrollment photo."
     elif passed:
         summary = "Usable photo, but " + ", ".join(c["label"].lower() for c in warned) + " could be better."
     else:
