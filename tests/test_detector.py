@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from backend.app.services.detector import FaceDetector, annotate_detections
+from backend.app.services.detector import Detection, FaceDetector, annotate_detections
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "faces"
@@ -74,6 +74,24 @@ def test_haar_detections_cannot_be_used_for_sface_alignment(tmp_path):
     with pytest.raises(ValueError, match="landmarks"):
         detection.as_yunet_row()
 
+
+def test_multiscale_overlap_suppression_keeps_highest_score():
+    low_score = Detection((10.0, 10.0, 100.0, 100.0), np.zeros((5, 2), dtype=np.float32), 0.78)
+    high_score = Detection((12.0, 11.0, 98.0, 99.0), np.ones((5, 2), dtype=np.float32), 0.91)
+    separate = Detection((220.0, 20.0, 80.0, 80.0), np.ones((5, 2), dtype=np.float32), 0.85)
+
+    kept = FaceDetector._suppress_overlaps([low_score, separate, high_score])
+
+    assert kept == [high_score, separate]
+
+
+def test_multiscale_overlap_suppression_keeps_non_overlapping_faces():
+    first = Detection((0.0, 0.0, 40.0, 40.0), np.zeros((5, 2), dtype=np.float32), 0.8)
+    second = Detection((60.0, 0.0, 40.0, 40.0), np.zeros((5, 2), dtype=np.float32), 0.8)
+
+    kept = FaceDetector._suppress_overlaps([first, second])
+
+    assert len(kept) == 2
 
 def test_annotation_returns_new_image(tmp_path):
     detector = make_haar_detector(tmp_path)
