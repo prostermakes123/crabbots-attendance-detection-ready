@@ -1004,8 +1004,9 @@
     const offsetX = (width - sourceW * scale) / 2;
     const offsetY = (height - sourceH * scale) / 2;
 
-    // Only draw enrolled members; unknown and pending detections are hidden.
-    const visibleDetections = detections.filter((det) => det.status === 'recognized');
+    // Draw every detected face. Unknown and pending people get temporary
+    // face boxes too, but remain separate from the enrolled-member visitor list.
+    const visibleDetections = detections;
     const activeTrackIds = new Set();
     visibleDetections.forEach((det) => {
       const [rawX, rawY, rawW, rawH] = det.bbox;
