@@ -2063,6 +2063,7 @@
               </div>
             </div>
           </div>
+          <div class="attendance-chart-wrap" id="attendance-chart"></div>
           <div id="attendance-table"></div>
           <div class="card-foot row-between" id="attendance-foot"></div>
         </div>
@@ -2084,6 +2085,7 @@
       state.filters.offset = 0;
       loadAttendance();
     });
+    renderAttendanceChart(state.sessions);
     await loadAttendance();
   }
 
@@ -2091,6 +2093,40 @@
     const link = $('#btn-export');
     if (!link) return;
     link.href = `/api/attendance/export.csv${state.filters.session_id ? `?session_id=${encodeURIComponent(state.filters.session_id)}` : ''}`;
+  }
+
+
+  function renderAttendanceChart(sessions) {
+    const root = $('#attendance-chart');
+    if (!root) return;
+    const recent = [...(sessions || [])]
+      .sort((a, b) => new Date(a.started_at || a.created_at || 0) - new Date(b.started_at || b.created_at || 0))
+      .slice(-7);
+    if (!recent.length) {
+      root.innerHTML = '<div class="attendance-chart-empty">Start recording attendance to see session statistics.</div>';
+      return;
+    }
+    const maxCount = Math.max(1, ...recent.map((session) => Number(session.present_count) || 0));
+    root.innerHTML = `
+      <section class="attendance-chart-card" aria-label="Attendance by recent session">
+        <div class="attendance-chart-heading">
+          <div><h3>Attendance by session</h3><p>Members checked in across the 7 most recent sessions</p></div>
+          <span class="attendance-chart-total">${num(recent.reduce((sum, session) => sum + (Number(session.present_count) || 0), 0))} check-ins</span>
+        </div>
+        <div class="attendance-bars" role="img" aria-label="Bar chart showing attendance counts for recent sessions">
+          ${recent.map((session) => {
+            const count = Number(session.present_count) || 0;
+            const height = Math.max(count > 0 ? 5 : 0, (count / maxCount) * 100);
+            const date = session.started_at || session.created_at;
+            const label = date ? new Date(date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Session';
+            return `<div class="attendance-bar-column" title="${esc(session.name || 'Session')}: ${count} present">
+              <strong class="attendance-bar-value">${count}</strong>
+              <div class="attendance-bar-track"><span class="attendance-bar" style="height:${height}%"></span></div>
+              <span class="attendance-bar-label">${esc(label)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </section>`;
   }
 
   async function loadAttendance() {
