@@ -7,25 +7,13 @@
   <meta name="description" content="CrabBots attendance: face recognition, instant enrolment and live attendance." />
   <title>CrabBots Attendance</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/static/styles.css?v=20261124-pose-guidance-no-mesh" />
+  <link rel="stylesheet" href="/static/styles.css?v=20261124-black-orange" />
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand" href="#/dashboard" aria-label="CrabBots Attendance home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 13c0-3.3 3.1-6 7-6s7 2.7 7 6" />
-            <path d="M7 17c0-3 4-5.5 9-5.5S25 14 25 17c0 4.4-3.6 7-9 7s-9-2.6-9-7Z" />
-            <path d="M10 12 6.5 8.5M22 12l3.5-3.5M6.5 20.5 3 24M25.5 20.5 29 24M13 24l-2 4M19 24l2 4" />
-            <circle cx="12.6" cy="15.6" r="1.05" fill="currentColor" stroke="none" />
-            <circle cx="19.4" cy="15.6" r="1.05" fill="currentColor" stroke="none" />
-          </svg>
-        </span>
-        <span class="brand-text">
-          <strong>CrabBots</strong>
-          <small>Attendance</small>
-        </span>
+        <img class="brand-logo" src="data:image/png;base64,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" alt="CrabBots" />
       </a>
 
       <nav class="nav" id="nav" aria-label="Main navigation"></nav>
