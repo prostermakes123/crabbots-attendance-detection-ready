@@ -39,6 +39,7 @@ class RecognitionPipeline:
         self.recognizer = recognizer
         self.gallery = gallery
         self._settings_cache: tuple[float, dict[str, Any]] | None = None
+        self._live_recognition_toggle = False
 
     # -- settings ----------------------------------------------------------
     def settings(self) -> dict[str, Any]:
@@ -94,7 +95,19 @@ class RecognitionPipeline:
         started = time.perf_counter()
         settings = self.settings()
         detections, embeddings = self._detect_and_embed(image_bgr, settings)
-        matches = self._match_all(embeddings, settings)
+        # Keep detection/tracking responsive every frame, but run the heavier
+        # SFace embedding + gallery search every second live frame.
+        # New tracks remain pending until the next recognition frame.
+        if method == "live":
+            self._live_recognition_toggle = not self._live_recognition_toggle
+            recognize_this_frame = self._live_recognition_toggle
+        else:
+            recognize_this_frame = True
+        if recognize_this_frame:
+            matches = self._match_all(embeddings, settings)
+        else:
+            embeddings = []
+            matches = [None] * len(detections)
         tracks = tracker.update(detections, embeddings, matches, settings)
 
         events: list[dict[str, Any]] = []
