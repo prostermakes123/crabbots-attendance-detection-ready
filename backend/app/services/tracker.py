@@ -65,6 +65,7 @@ class Track:
     session_id: str | None = None
     evidence: deque[Evidence] = field(default_factory=deque)
     velocity: tuple[float, float] = (0.0, 0.0)  # smoothed center displacement per processed frame
+    head_pose: tuple[float, float, float] | None = None
 
     def add_evidence(self, item: Evidence, window: int) -> None:
         if self.evidence.maxlen != window:
@@ -191,6 +192,7 @@ class MultiFaceTracker:
                 0.65 * track.velocity[1] + 0.35 * measured[1],
             )
             track.bbox = det.bbox
+            track.head_pose = det.head_pose
             track.last_frame = frame
             track.hits += 1
             track.missed = 0
@@ -201,7 +203,8 @@ class MultiFaceTracker:
         # Create tracks for unmatched detections.
         for di in unmatched:
             det = detections[di]
-            track = Track(id=self._next_id, bbox=det.bbox, created_frame=frame, last_frame=frame)
+            track = Track(id=self._next_id, bbox=det.bbox, created_frame=frame, last_frame=frame,
+                          head_pose=det.head_pose)
             self._next_id += 1
             self.tracks[track.id] = track
             self._apply_evidence(track, matches[di], frame, window)
@@ -281,6 +284,7 @@ class MultiFaceTracker:
             "missed": track.missed,
             "evidence": len(track.evidence),
             "attendance_recorded": track.attendance_recorded,
+            "head_pose": [round(v, 1) for v in track.head_pose] if track.head_pose is not None else None,
         }
 
     def active_count(self, max_age: int = 24) -> int:
