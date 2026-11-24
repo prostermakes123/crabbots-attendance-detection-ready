@@ -1669,12 +1669,13 @@
     }
     try {
       const form = new FormData();
+      const cameraPrimary = add.scanFiles.find((scan) => scan.name === 'camera-front.jpg') || add.scanFiles[0];
       if (add.file) {
         form.append('file', add.file);
         add.scanFiles.forEach((scan) => form.append('scan_files', scan));
       } else {
-        form.append('file', add.scanFiles[0]);
-        add.scanFiles.slice(1).forEach((scan) => form.append('scan_files', scan));
+        form.append('file', cameraPrimary);
+        add.scanFiles.filter((scan) => scan !== cameraPrimary).forEach((scan) => form.append('scan_files', scan));
       }
       form.append('name', add.name.trim());
       form.append('consent', add.consent ? 'true' : 'false');
