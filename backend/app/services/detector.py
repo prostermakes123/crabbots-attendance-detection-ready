@@ -162,7 +162,8 @@ class FaceDetector:
         detections = self.detect(resized, score_threshold=score_threshold)
         return [detection.scaled(1.0 / scale) for detection in detections]
 
-    def _detect_yunet(self, image: np.ndarray, threshold: float) -> list[Detection]:
+    def _run_yunet(self, image: np.ndarray, threshold: float) -> list[Detection]:
+        """Run one YuNet pass and return detections in this image's coordinates."""
         h, w = image.shape[:2]
         with self._lock:
             self._detector.setScoreThreshold(threshold)
@@ -172,13 +173,70 @@ class FaceDetector:
             return []
         out: list[Detection] = []
         for row in faces:
+            if len(row) < 15 or not np.all(np.isfinite(row[:15])):
+                continue
             x, y, bw, bh = (float(v) for v in row[:4])
-            if not np.all(np.isfinite(row[:15])) or bw <= 1 or bh <= 1:
+            if bw <= 1 or bh <= 1:
                 continue
             landmarks = row[4:14].reshape(5, 2).astype(np.float32)
             out.append(Detection((x, y, bw, bh), landmarks, float(row[14]), True))
-        out.sort(key=lambda d: d.bbox[2] * d.bbox[3], reverse=True)
         return out
+
+    @staticmethod
+    def _suppress_overlaps(
+        detections: list[Detection], iou_threshold: float = 0.45
+    ) -> list[Detection]:
+        """Deduplicate boxes from image-pyramid passes, preferring higher YuNet scores."""
+        ordered = sorted(
+            detections,
+            key=lambda det: (
+                float(det.score) if det.score is not None else -1.0,
+                det.bbox[2] * det.bbox[3],
+            ),
+            reverse=True,
+        )
+        kept: list[Detection] = []
+        for candidate in ordered:
+            x1, y1, w1, h1 = candidate.bbox
+            area1 = w1 * h1
+            overlaps = False
+            for existing in kept:
+                x2, y2, w2, h2 = existing.bbox
+                ix1, iy1 = max(x1, x2), max(y1, y2)
+                ix2, iy2 = min(x1 + w1, x2 + w2), min(y1 + h1, y2 + h2)
+                intersection = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+                union = area1 + w2 * h2 - intersection
+                if union > 0 and intersection / union >= iou_threshold:
+                    overlaps = True
+                    break
+            if not overlaps:
+                kept.append(candidate)
+        kept.sort(key=lambda det: det.bbox[2] * det.bbox[3], reverse=True)
+        return kept
+
+    def _detect_yunet(self, image: np.ndarray, threshold: float) -> list[Detection]:
+        """Use a two-scale image pyramid to recover smaller faces without changing thresholds.
+
+        The enlarged pass is capped to avoid excessive memory use on large uploads.
+        Its boxes and landmarks are mapped back to the original image before
+        overlap suppression, so downstream SFace alignment receives source pixels.
+        """
+        h, w = image.shape[:2]
+        detections = self._run_yunet(image, threshold)
+
+        # The live pipeline commonly supplies 640px-wide frames. A 1.5x pass
+        # preserves more facial detail for people farther from the camera.
+        if max(h, w) <= 1280:
+            scale = 1.5
+            enlarged = cv2.resize(
+                image,
+                (int(round(w * scale)), int(round(h * scale))),
+                interpolation=cv2.INTER_CUBIC,
+            )
+            enlarged_detections = self._run_yunet(enlarged, threshold)
+            detections.extend(det.scaled(1.0 / scale) for det in enlarged_detections)
+
+        return self._suppress_overlaps(detections)
 
     def _detect_haar(self, image: np.ndarray) -> list[Detection]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
