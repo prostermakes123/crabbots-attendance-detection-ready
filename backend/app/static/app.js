@@ -1508,9 +1508,110 @@
       state.add = { file: null, scanFiles: [], cameraStream: null, analysis: null, busy: false, forceDup: false, forceName: false, name: '', consent: false, notes: '', done: null, error: null, errorImage: null };
       renderAddMember();
     });
-    $('#btn-camera-start')?.addEventListener('click', startEnrolCamera);
+    $('#btn-camera-start')?.addEventListener('click', openEnrolScanWizard);
     $('#btn-camera-stop')?.addEventListener('click', stopEnrolCamera);
     $$('[data-scan-angle]').forEach((button) => button.addEventListener('click', () => captureEnrolAngle(button.dataset.scanAngle)));
+  }
+
+  const ENROL_SCAN_STEPS = [
+    { angle: 'front', title: 'Look straight at the camera', hint: 'Face the camera directly and keep your eyes open.' },
+    { angle: 'left', title: 'Turn your head slightly left', hint: 'Turn gently; keep your face inside the guide.' },
+    { angle: 'right', title: 'Turn your head slightly right', hint: 'Turn gently to the other side.' },
+    { angle: 'tilt', title: 'Tilt your head slightly', hint: 'Tilt one ear toward your shoulder.' },
+  ];
+
+  let enrolWizardStep = 0;
+
+  async function openEnrolScanWizard() {
+    enrolWizardStep = ENROL_SCAN_STEPS.findIndex((step) =>
+      !state.add.scanFiles.some((file) => file.name === `camera-${step.angle}.jpg`));
+    if (enrolWizardStep < 0) enrolWizardStep = ENROL_SCAN_STEPS.length;
+    const modal = openModal({
+      title: 'Sign up with the camera',
+      subtitle: 'Follow the quick head-pose prompts to create a more reliable face profile.',
+      wide: true,
+      body: `
+        <div class="enrol-wizard">
+          <div class="enrol-wizard-heading">
+            <div class="enrol-wizard-prompt" id="enrol-wizard-title"></div>
+            <div class="small muted" id="enrol-wizard-step"></div>
+          </div>
+          <div class="enrol-wizard-stage" id="enrol-camera-wrap">
+            <video id="enrol-camera" autoplay muted playsinline></video>
+            <div class="enrol-wizard-oval" aria-hidden="true"></div>
+            <div class="enrol-wizard-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="enrol-wizard-status" id="enrol-wizard-hint">Starting your camera…</div>
+          <div class="enrol-wizard-progress"><span id="enrol-wizard-progress"></span></div>
+          <div class="enrol-wizard-bottom">
+            <span class="small muted" id="enrol-wizard-count"></span>
+            <button class="btn btn-primary" id="enrol-wizard-capture" data-scan-angle="front">Capture this angle</button>
+          </div>
+          <div class="enrol-wizard-done hidden" id="enrol-wizard-done">
+            <div class="enrol-wizard-check">✓</div>
+            <strong>Face scan complete</strong>
+            <span class="small muted">Your camera angles are ready. Add the member's details to finish enrollment.</span>
+          </div>
+        </div>`,
+      actions: [
+        { label: 'Cancel', class: 'btn-ghost', onClick: (close) => { stopEnrolCamera(); close(); } },
+        { label: 'Continue to details', class: 'btn-primary', onClick: (close) => { stopEnrolCamera(); close(); } },
+      ],
+    });
+    const continueButton = $('[data-modal-action="1"]', modal.root);
+    if (continueButton) continueButton.disabled = enrolWizardStep < ENROL_SCAN_STEPS.length;
+    const closeButton = $('[data-modal-close]', modal.root);
+    if (closeButton) closeButton.addEventListener('click', stopEnrolCamera);
+    const backdrop = $('[data-modal-backdrop]', modal.root);
+    if (backdrop) backdrop.addEventListener('mousedown', (event) => {
+      if (event.target === backdrop) stopEnrolCamera();
+    });
+    $('#enrol-wizard-capture')?.addEventListener('click', async () => {
+      const button = $('#enrol-wizard-capture');
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      await captureEnrolAngle(button.dataset.scanAngle);
+      if (state.add.error) button.disabled = false;
+    });
+    renderEnrolWizardStep();
+    await startEnrolCamera();
+    renderEnrolWizardStep();
+  }
+
+  function renderEnrolWizardStep() {
+    const title = $('#enrol-wizard-title');
+    const stepLabel = $('#enrol-wizard-step');
+    const hint = $('#enrol-wizard-hint');
+    const count = $('#enrol-wizard-count');
+    const progress = $('#enrol-wizard-progress');
+    const capture = $('#enrol-wizard-capture');
+    const done = $('#enrol-wizard-done');
+    const continueButton = $('[data-modal-action="1"]');
+    if (!title || !capture) return;
+    const completed = enrolWizardStep >= ENROL_SCAN_STEPS.length;
+    if (completed) {
+      title.textContent = 'You’re ready to enroll';
+      stepLabel.textContent = 'Step 5 of 5';
+      hint.textContent = 'All four face angles have been captured.';
+      count.textContent = '4 of 4 angles captured';
+      progress.style.width = '100%';
+      capture.classList.add('hidden');
+      done?.classList.remove('hidden');
+      if (continueButton) continueButton.disabled = false;
+      return;
+    }
+    const step = ENROL_SCAN_STEPS[enrolWizardStep];
+    title.textContent = step.title;
+    stepLabel.textContent = `Step ${enrolWizardStep + 1} of 5`;
+    hint.textContent = step.hint;
+    count.textContent = `${state.add.scanFiles.length} of 4 angles captured`;
+    progress.style.width = `${(state.add.scanFiles.length / 4) * 100}%`;
+    capture.dataset.scanAngle = step.angle;
+    capture.textContent = 'Capture this angle';
+    capture.classList.remove('hidden');
+    capture.disabled = !state.add.cameraStream;
+    done?.classList.add('hidden');
+    if (continueButton) continueButton.disabled = true;
   }
 
   async function startEnrolCamera() {
@@ -1613,6 +1714,11 @@
     const enrolButton = $('#btn-enrol');
     if (enrolButton) enrolButton.disabled = !((state.add.file || state.add.scanFiles.some((item) => item.name === 'camera-front.jpg')) && state.add.analysis?.ok && state.add.name.trim().length >= 2 && state.add.consent);
     toast(`${angle[0].toUpperCase() + angle.slice(1)} angle captured`, 'success', 1800);
+    if ($('#enrol-wizard-capture')) {
+      enrolWizardStep = ENROL_SCAN_STEPS.findIndex((step) => !state.add.scanFiles.some((item) => item.name === `camera-${step.angle}.jpg`));
+      if (enrolWizardStep < 0) enrolWizardStep = ENROL_SCAN_STEPS.length;
+      renderEnrolWizardStep();
+    }
   }
 
   async function analyzeEnrolImage(file) {
