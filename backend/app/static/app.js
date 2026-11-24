@@ -1445,7 +1445,7 @@
       $('#enrol-camera-wrap')?.classList.remove('hidden');
       cameraVideo.play().catch(() => {});
     }
-    $('[data-scan-angle]').forEach((button) => {
+    $$('[data-scan-angle]').forEach((button) => {
       const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
       button.disabled = !state.add.cameraStream || captured;
       if (captured) button.classList.add('btn-primary');
@@ -1506,7 +1506,7 @@
     });
     $('#btn-camera-start')?.addEventListener('click', startEnrolCamera);
     $('#btn-camera-stop')?.addEventListener('click', stopEnrolCamera);
-    $('[data-scan-angle]').forEach((button) => button.addEventListener('click', () => captureEnrolAngle(button.dataset.scanAngle)));
+    $$('[data-scan-angle]').forEach((button) => button.addEventListener('click', () => captureEnrolAngle(button.dataset.scanAngle)));
   }
 
   async function startEnrolCamera() {
@@ -1539,7 +1539,7 @@
         });
       }
       await video.play();
-      $$('[data-scan-angle]').forEach((button) => {
+      $$$('[data-scan-angle]').forEach((button) => {
         const captured = state.add.scanFiles.some((file) => file.name === `camera-${button.dataset.scanAngle}.jpg`);
         button.disabled = captured;
       });
@@ -1564,7 +1564,7 @@
     $('#enrol-camera-wrap')?.classList.add('hidden');
     const startButton = $('#btn-camera-start');
     if (startButton) startButton.disabled = false;
-    $$('[data-scan-angle]').forEach((button) => { button.disabled = true; });
+    $$$('[data-scan-angle]').forEach((button) => { button.disabled = true; });
   }
 
   async function captureEnrolAngle(angle) {
@@ -1593,7 +1593,7 @@
     const thumbs = $('#scan-thumbnails');
     if (thumbs) thumbs.innerHTML = state.add.scanFiles.map((item) =>
       `<span class="badge ok">${esc(item.name.replace('camera-', '').replace('.jpg', ''))} captured</span>`).join('');
-    const button = $('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
+    const button = $$('[data-scan-angle]').find((item) => item.dataset.scanAngle === angle);
     if (button) { button.disabled = true; button.classList.add('btn-primary'); }
     if (!state.add.file && !state.add.analysis) await analyzeEnrolImage(file);
     const enrolButton = $('#btn-enrol');
