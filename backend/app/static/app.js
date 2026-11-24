@@ -151,6 +151,7 @@
     targetFps: 8,
     overlayBoxes: new Map(),
     seenAttendanceMembers: new Set(),
+    knownVisitors: new Map(),
   };
 
   /* --------------------------------------------------------------- toasts */
@@ -640,7 +641,7 @@
               <div class="det-list" id="det-list"></div>
             </div>
             <div class="card">
-              <div class="card-head"><h2>Recent activity</h2><span class="badge" id="activity-count">0</span></div>
+              <div class="card-head"><h2>Known visitors</h2><span class="badge" id="activity-count">0</span></div>
               <div class="activity" id="live-activity"></div>
             </div>
             <div class="card">
@@ -949,7 +950,7 @@
     drawOverlay(live.detections);
     renderDetections(live.detections);
     updateHud(live.detections, message);
-    pushLiveEvents(message);
+    pushLiveEvents(message, live.detections);
     scheduleNextFrame();
   }
 
@@ -1060,9 +1061,12 @@
       ctx.fillText(label, chipX + 8, chipY + chipH / 2 + 1);
 
       if (det.track_id) {
+        // Keep the track label inside the box so it doesn't appear to bounce
+        // below the face as the detector adjusts the box between frames.
         ctx.font = '500 10px "Cascadia Code", monospace';
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.fillText(`#${det.track_id}`, rx + 4, ry + rh + 12);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`#${det.track_id}`, rx + 5, ry + rh - 5);
       }
     });
     for (const trackKey of live.overlayBoxes.keys()) {
@@ -1105,23 +1109,43 @@
       .join('');
   }
 
-  function pushLiveEvents(message) {
-    const events = [];
-    (message.attendance_created || []).forEach((record) => {
-      // Keep only one activity entry per known member during this live run.
-      const memberKey = String(record.member_id || record.member_name || '').trim().toLowerCase();
-      if (!memberKey || live.seenAttendanceMembers.has(memberKey)) return;
-      live.seenAttendanceMembers.add(memberKey);
-      events.push({
-        kind: 'attendance', name: record.member_name, confidence: record.confidence,
-        ts: record.timestamp, id: record.id, member_id: record.member_id,
+  function pushLiveEvents(message, detections = []) {
+    // A known visitor is anyone the recognition pipeline reliably identifies,
+    // whether or not a new attendance row is created for this encounter.
+    detections
+      .filter((det) => det.status === 'recognized' && det.member_id)
+      .forEach((det) => {
+        const key = String(det.member_id);
+        const existing = live.knownVisitors.get(key);
+        live.knownVisitors.set(key, {
+          member_id: key,
+          name: det.name || existing?.name || 'Member',
+          confidence: Number(det.confidence) || existing?.confidence || 0,
+          ts: existing?.ts || new Date().toISOString(),
+          checkedIn: Boolean(existing?.checkedIn || det.attendance_recorded),
+        });
       });
+
+    (message.attendance_created || []).forEach((record) => {
+      const memberKey = String(record.member_id || '').trim();
+      if (memberKey) {
+        const existing = live.knownVisitors.get(memberKey);
+        live.knownVisitors.set(memberKey, {
+          member_id: memberKey,
+          name: record.member_name || existing?.name || 'Member',
+          confidence: Number(record.confidence) || existing?.confidence || 0,
+          ts: record.timestamp || existing?.ts || new Date().toISOString(),
+          checkedIn: true,
+        });
+      }
+
+      const attendanceKey = String(record.member_id || record.member_name || '').trim().toLowerCase();
+      if (!attendanceKey || live.seenAttendanceMembers.has(attendanceKey)) return;
+      live.seenAttendanceMembers.add(attendanceKey);
       toast(`${record.member_name} checked in`, 'success', 3200);
       refreshSession();
     });
-    // Unknown detections are deliberately omitted from Recent activity.
-    if (!events.length) return;
-    live.activity = [...events, ...live.activity].slice(0, 12);
+
     renderLiveActivity();
   }
 
@@ -1129,20 +1153,21 @@
     const root = $('#live-activity');
     const count = $('#activity-count');
     if (!root) return;
-    if (count) count.textContent = String(live.activity.length);
-    if (!live.activity.length) {
-      root.innerHTML = emptyBlock('activity', 'No known visitors yet', 'Recognized members appear here once when they check in.');
+    const visitors = [...live.knownVisitors.values()]
+      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+      .slice(0, 12);
+    if (count) count.textContent = String(visitors.length);
+    if (!visitors.length) {
+      root.innerHTML = emptyBlock('activity', 'No known visitors yet', 'Recognized members appear here when they are identified, even if they have already checked in.');
       return;
     }
-    root.innerHTML = live.activity
-      .map(
-        (item) => `<div class="activity-item">
-          <span class="activity-dot ${item.kind === 'unknown' ? 'unknown' : ''}"></span>
-          <div><div style="font-weight:600">${esc(item.name)}</div>
-          <div class="small muted">${item.kind === 'unknown' ? 'Rejected · no identity assigned' : `Checked in · ${pct(item.confidence)}`}</div></div>
-          <span class="activity-time">${esc(timeAgo(item.ts))}</span>
-        </div>`,
-      )
+    root.innerHTML = visitors
+      .map((item) => `<div class="activity-item">
+        <span class="activity-dot"></span>
+        <div><div style="font-weight:600">${esc(item.name)}</div>
+        <div class="small muted">${item.checkedIn ? `Checked in · ${pct(item.confidence)}` : `Recognized · ${pct(item.confidence)}`}</div></div>
+        <span class="activity-time">${esc(timeAgo(item.ts))}</span>
+      </div>`)
       .join('');
   }
 
