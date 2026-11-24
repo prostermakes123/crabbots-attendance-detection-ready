@@ -95,6 +95,24 @@ def test_multiscale_overlap_suppression_keeps_non_overlapping_faces():
 
     assert len(kept) == 2
 
+def test_multiscale_suppression_removes_nested_duplicate_face_boxes():
+    # Two detector scales can return differently sized boxes for the same face.
+    original = Detection((100.0, 80.0, 100.0, 100.0), np.zeros((5, 2), dtype=np.float32), 0.8)
+    nested_duplicate = Detection((120.0, 100.0, 60.0, 60.0), np.ones((5, 2), dtype=np.float32), 0.95)
+
+    kept = FaceDetector._suppress_overlaps([original, nested_duplicate])
+
+    assert kept == [original]
+
+
+def test_multiscale_suppression_keeps_distinct_partially_overlapping_faces():
+    first = Detection((0.0, 0.0, 40.0, 40.0), np.zeros((5, 2), dtype=np.float32), 0.8)
+    nearby_person = Detection((30.0, 0.0, 40.0, 40.0), np.ones((5, 2), dtype=np.float32), 0.8)
+
+    kept = FaceDetector._suppress_overlaps([first, nearby_person])
+
+    assert len(kept) == 2
+
 def test_annotation_returns_new_image(tmp_path):
     detector = make_haar_detector(tmp_path)
     image = cv2.imread(str(FIXTURES / "Jack_Hathaway.jpg"))
