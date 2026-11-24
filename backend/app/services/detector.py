@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 
 from ..core.logging import get_logger
+from .head_pose import estimate_head_pose
 
 log = get_logger("detector")
 
@@ -27,6 +28,7 @@ class Detection:
     landmarks: np.ndarray  # (5, 2) float32; zeros when unavailable
     score: float | None
     landmarks_valid: bool = True
+    head_pose: tuple[float, float, float] | None = None  # yaw, pitch, roll
 
     @property
     def width(self) -> float:
@@ -53,6 +55,7 @@ class Detection:
             landmarks=self.landmarks * factor,
             score=self.score,
             landmarks_valid=self.landmarks_valid,
+            head_pose=self.head_pose,
         )
 
     def as_dict(self) -> dict:
@@ -61,6 +64,7 @@ class Detection:
             "bbox": [round(x, 1), round(y, 1), round(w, 1), round(h, 1)],
             "score": round(float(self.score), 4) if self.score is not None else None,
             "landmarks": self.landmarks.round(1).tolist() if self.landmarks_valid else None,
+            "head_pose": [round(v, 1) for v in self.head_pose] if self.head_pose is not None else None,
         }
 
 
@@ -179,7 +183,8 @@ class FaceDetector:
             if bw <= 1 or bh <= 1:
                 continue
             landmarks = row[4:14].reshape(5, 2).astype(np.float32)
-            out.append(Detection((x, y, bw, bh), landmarks, float(row[14]), True))
+            pose = estimate_head_pose(landmarks, (w, h))
+            out.append(Detection((x, y, bw, bh), landmarks, float(row[14]), True, pose))
         return out
 
     @staticmethod
