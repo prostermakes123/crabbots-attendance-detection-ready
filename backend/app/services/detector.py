@@ -184,12 +184,18 @@ class FaceDetector:
 
     @staticmethod
     def _suppress_overlaps(
-        detections: list[Detection], iou_threshold: float = 0.45
+        detections: list[Detection],
+        iou_threshold: float = 0.45,
+        containment_threshold: float = 0.80,
     ) -> list[Detection]:
-        """Deduplicate boxes while preserving original-resolution detections over enlarged-pass duplicates."""
-        # Keep input priority: _detect_yunet supplies original-resolution boxes
-        # first, followed by enlarged-pass boxes. The original landmarks are the
-        # stable SFace alignment reference for faces both passes can see.
+        """Remove duplicate boxes, including differently sized boxes around one face.
+
+        IoU handles ordinary overlapping duplicates. Intersection-over-smaller-area
+        also catches a tight box nested inside a looser box, a common outcome when
+        the original and enlarged YuNet passes see the same face differently.
+        Input priority is preserved so original-resolution landmarks win over
+        enlarged-pass duplicates for SFace alignment.
+        """
         kept: list[Detection] = []
         for candidate in detections:
             x1, y1, w1, h1 = candidate.bbox
@@ -197,11 +203,15 @@ class FaceDetector:
             overlaps = False
             for existing in kept:
                 x2, y2, w2, h2 = existing.bbox
+                area2 = w2 * h2
                 ix1, iy1 = max(x1, x2), max(y1, y2)
                 ix2, iy2 = min(x1 + w1, x2 + w2), min(y1 + h1, y2 + h2)
                 intersection = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
-                union = area1 + w2 * h2 - intersection
-                if union > 0 and intersection / union >= iou_threshold:
+                union = area1 + area2 - intersection
+                smaller_area = min(area1, area2)
+                iou = intersection / union if union > 0 else 0.0
+                containment = intersection / smaller_area if smaller_area > 0 else 0.0
+                if iou >= iou_threshold or containment >= containment_threshold:
                     overlaps = True
                     break
             if not overlaps:
