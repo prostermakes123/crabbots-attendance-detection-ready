@@ -50,16 +50,47 @@ def test_record_false_does_not_write_attendance_or_unknown_events(monkeypatch):
 
     assert writes == {'attendance': 0, 'unknown': 0}
 
+def test_pipeline_keeps_more_detail_for_small_faces():
+    from backend.app.services.detector import Detection
 
-def test_live_pipeline_uses_higher_detail_scan_defaults(monkeypatch):
-    pipeline = RecognitionPipeline(EmptyDetector(), EmptyRecognizer(), FaceGallery())
-    monkeypatch.setattr(pipeline, "settings", lambda: {
+    class CapturingDetector:
+        def __init__(self):
+            self.shape = None
+            self.threshold = None
+
+        def detect(self, image, score_threshold=None):
+            self.shape = image.shape
+            self.threshold = score_threshold
+            return [Detection(
+                (100.0, 80.0, 40.0, 40.0),
+                np.zeros((5, 2), dtype=np.float32),
+                0.8,
+            )]
+
+    class CapturingRecognizer:
+        def __init__(self):
+            self.source_shape = None
+            self.bbox = None
+
+        def embed(self, image, detection):
+            self.source_shape = image.shape
+            self.bbox = detection.bbox
+            return np.ones(128, dtype=np.float32)
+
+    detector = CapturingDetector()
+    recognizer = CapturingRecognizer()
+    pipeline = RecognitionPipeline(detector, recognizer, FaceGallery())
+    settings = {
         "processing_width": 800,
         "detector_score_threshold": 0.65,
         "min_face_size_px": 32,
-        "recognition_threshold": 0.4,
-        "recognition_margin": 0.05,
-    })
-    assert pipeline.settings()["processing_width"] == 800
-    assert pipeline.settings()["detector_score_threshold"] == 0.65
-    assert pipeline.settings()["min_face_size_px"] == 32
+    }
+    image = np.zeros((900, 1600, 3), dtype=np.uint8)
+
+    detections, embeddings = pipeline._detect_and_embed(image, settings)
+
+    assert detector.shape[:2] == (450, 800)
+    assert detector.threshold == 0.65
+    assert recognizer.source_shape == image.shape
+    assert detections[0].bbox == (200.0, 160.0, 80.0, 80.0)
+    assert len(embeddings) == 1
